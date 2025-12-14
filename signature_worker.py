@@ -17,9 +17,14 @@ class SignatureWorker(multiprocessing.Process):
   Worker para procesar firma en segundo plano
   """
 
-  def __init__(self, documents, cert_password: str = None):
+  def __init__(self, documents, cert_path: str = None, 
+               cert_password: str = None, use_dnie: bool = False):
+    
     multiprocessing.Process.__init__(self)
+    
+    self.cert_path = cert_path
     self.cert_password = cert_password
+    self.use_dnie = use_dnie
     self.documents = documents
 
   def run(self):
@@ -31,7 +36,9 @@ class SignatureWorker(multiprocessing.Process):
       logger.info(f"Descargados {len(documents)} documentos")
       
       signer = PyHankoSigner(
+        cert_path=self.cert_path,
         cert_password=self.cert_password,
+        use_dnie=self.use_dnie
       )
       
       # Firmo cada PDF

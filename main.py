@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
   pdfs = leer_pdfs_de_carpeta(carpeta)
 
-  worker = SignatureWorker(pdfs, 'XXXXXXXXXX')
+  worker = SignatureWorker(pdfs, use_dnie = True, cert_password = 'XXXXXXXXXX')
   worker.start()
 
 
