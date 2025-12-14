@@ -31,6 +31,9 @@ class PyHankoSigner:
     self.cert_password = cert_password
     self.signer = None
 
+    # sesion pkcs11 para controlar su cierre
+    self._pkcs11_session = None
+
     self._setup_dnie()
 
   def _setup_dnie(self):
@@ -64,7 +67,8 @@ class PyHankoSigner:
       logger.info(f"Módulo PKCS#11: {pkcs11_lib}")
           
       # Abro sesión PKCS#11
-      session = pkcs11.open_pkcs11_session(lib_location=pkcs11_lib, slot_no=0, user_pin=self.cert_password)
+      session= pkcs11.open_pkcs11_session(lib_location=pkcs11_lib, slot_no=0, user_pin=self.cert_password)
+      self._pkcs11_session = session
         
       # Intento detectar etiqueta del certificado
       if self.cert_label is None:
@@ -163,3 +167,15 @@ class PyHankoSigner:
       logger.error(f"Error firmando PDF: {e}")
       raise
 
+  def close(self):
+    """
+    Cierra la sesión de PKCS#11.
+    """
+    if self._pkcs11_session:
+      try:
+        self._pkcs11_session.close()
+        logger.info("Sesión PKCS#11 cerrada explícitamente.")
+      except Exception as e:
+        logger.warning(f"Error al cerrar la sesión PKCS#11: {e}")
+      finally:
+        self._pkcs11_session = None
