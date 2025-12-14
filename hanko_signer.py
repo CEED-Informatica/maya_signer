@@ -8,6 +8,9 @@ from pyhanko.sign import signers
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign.fields import SigFieldSpec
 
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.hazmat import backends
+
 from io import BytesIO
 import os
 
@@ -25,16 +28,22 @@ class PyHankoSigner:
   Wrapper para pyHanko que firma PDFs
   """
   
-  def __init__(self, cert_password: Optional[str] = None, cert_label: Optional[str] = None):
+  def __init__(self,  cert_path: Optional[str] = None, cert_password: Optional[str] = None, 
+               cert_label: Optional[str] = None, use_dnie: bool = False):
     
+    self.cert_path = cert_path
     self.cert_label = cert_label
     self.cert_password = cert_password
+    self.use_dnie = use_dnie
     self.signer = None
 
     # sesion pkcs11 para controlar su cierre
     self._pkcs11_session = None
-
-    self._setup_dnie()
+    
+    if not use_dnie and cert_path:
+      self._load_certificate()
+    elif use_dnie:
+      self._setup_dnie()
 
   def _setup_dnie(self):
     """
@@ -60,8 +69,8 @@ class PyHankoSigner:
         else:
           raise FileNotFoundError(
               "No se encontró el módulo PKCS#11 del DNIe.\n"
-              "Linux: sudo apt-get install opensc\n"
-              "Windows: Instala el software del DNIe"
+              "- Linux: sudo apt-get install opensc\n"
+              "- Windows: Instala el software del DNIe"
           )
           
       logger.info(f"Módulo PKCS#11: {pkcs11_lib}")
@@ -103,8 +112,37 @@ class PyHankoSigner:
       logger.error(f"Error configurando DNIe: {str(e)}")
       raise
 
+  def _load_certificate(self):
+    """
+    Carga certificado .p12/.pfx
+    """
+    try:
+      with open(self.cert_path, 'rb') as f:
+        cert_data = f.read()
+      
+      # Cargar PKCS12
+      private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(
+          cert_data,
+          self.cert_password.encode() if self.cert_password else None,
+          backend=backends.default_backend()
+      )
+      
+      # Creo el firmante
+      self.signer = signers.SimpleSigner(
+        signing_cert=certificate,
+        signing_key=private_key,
+        cert_registry=signers.SimpleCertificateStore.from_certs(
+            additional_certs or []
+        )
+      )
+      
+      logger.info(f"Certificado cargado: {self.cert_path}")
+      
+    except Exception as e:
+      logger.error(f"Error cargando certificado: {str(e)}")
+      raise
 
-  def sign_pdf(self, pdf_bytes: bytes, reason: str = "Firmado digitalmente",
+  def sign_pdf(self, pdf_bytes: bytes, reason: str = "Firmado electrónicamente",
       location: str = "España", contact_info: Optional[str] = None) -> bytes:
     """
     Firma un PDF usando pyHanko
