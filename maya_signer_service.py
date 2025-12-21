@@ -3,10 +3,8 @@
 from pathlib import Path
 import json
 from typing import Dict
-from PySide6.QtWidgets import (QSystemTrayIcon, QMenu, 
-                                   QWidget, QVBoxLayout, QLabel, QPushButton,
-                                   QLineEdit, QMessageBox, QProgressDialog,
-                                   QInputDialog, QFileDialog, QCheckBox)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton,
+                               QLineEdit, QMessageBox,QCheckBox)
 
 class MayaSignerService(QWidget):
   """
@@ -115,6 +113,8 @@ class MayaSignerService(QWidget):
     }
 
     self.save_config()
+
+    QMessageBox.information(self, 'Guardado', 'Configuración guardada correctamente')
 
   def on_dnie_changed(self, state):
     """
