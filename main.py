@@ -84,7 +84,12 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     service = MayaSignerService()
-    service.show()
+    
+    # Si se pasa URL como argumento, procesarla
+    if len(sys.argv) > 1:
+      service.handle_protocol(sys.argv[1])
+    else:
+      service.show()
         
     sys.exit(app.exec())
   else:

@@ -5,7 +5,6 @@ import logging
 import xmlrpc.client
 import console_message_color as cmc
 
-
 logging.basicConfig(
         level=logging.DEBUG, 
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -13,7 +12,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-class MayaClient(object):
+class OdooClient(object):
   """
   Cliente para comunicación con Maya (Odoo) vía XML-RPC
   """

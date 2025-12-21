@@ -1,12 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import logging
+
 from pathlib import Path
 import json
 from typing import Dict
 from PySide6.QtWidgets import (QWidget, QFileDialog, QVBoxLayout, QLabel, QPushButton,
-                               QLineEdit, QMessageBox,QCheckBox)
+                               QInputDialog,QLineEdit, QMessageBox,QCheckBox)
 
-from maya_client import MayaClient
+from odoo_client import OdooClient
+from urllib.parse import urlparse, parse_qs
+
+logging.basicConfig(
+        level=logging.DEBUG, 
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    )
+
+logger = logging.getLogger(__name__)
 
 class MayaSignerService(QWidget):
   """
@@ -20,6 +30,7 @@ class MayaSignerService(QWidget):
     self.config_file.parent.mkdir(exist_ok=True)
         
     self.config = self.load_config()
+    self.odoo_client = None
         
     self.init_ui()
     
@@ -129,7 +140,7 @@ class MayaSignerService(QWidget):
     Prueba conexión con Odoo
     """
     try:
-      odoo_client = MayaClient(
+      odoo_client = OdooClient(
         self.url_input.text(),
         self.db_input.text(),
         self.user_input.text(),
@@ -158,3 +169,42 @@ class MayaSignerService(QWidget):
     if file_path:
       self.cert_input.setText(file_path)
       
+  def handle_protocol(self, url: str):
+    """
+    Gestiona llamadas al protocolo maya://sign
+    """
+    logger.info(f"Protocolo recibido: {url}")
+        
+    try:
+      parsed = urlparse(url)
+      params = parse_qs(parsed.query)
+    
+      batch_id = int(params['batch'][0])
+      token = params.get('token', [None])[0]
+      odoo_url = params.get('url', [self.config['odoo_url']])[0]
+    
+      # Autenticar
+      odoo_client = OdooClient(
+        odoo_url,
+        self.config['odoo_db'],
+        self.config['odoo_username'],
+        self.pass_input.text()
+      )
+            
+      if not odoo_client.authenticate():
+        raise ValueError("Error de autenticación con Odoo")
+            
+      # Obtener contraseña del certificado si no es DNIe
+      cert_password = None
+      cert_password, ok = QInputDialog.getText(
+                    self, 
+                    'Contraseña del certificado', 
+                    'Introduce la contraseña del certificado:',
+                    QLineEdit.Password
+                )
+      if not ok:
+        return
+       
+    except Exception as e:
+      logger.error(f"Error manejando protocolo: {str(e)}")
+      QMessageBox.critical(self, 'Error', str(e))
