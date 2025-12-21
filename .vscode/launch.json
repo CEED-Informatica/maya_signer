@@ -1,0 +1,17 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+
+    {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "main.py",
+      "args": ["maya://sign?batch=113&token=p6FTJFJ3X_ovILXl8zIF0JAYf4v9K2c7pj--9dfbI44&url=http://localhost:8069&db=CEED_TEST_2526"],
+      "console": "integratedTerminal"
+    }
+  ]
+}
