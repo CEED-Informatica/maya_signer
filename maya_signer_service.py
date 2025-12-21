@@ -6,6 +6,8 @@ from typing import Dict
 from PySide6.QtWidgets import (QWidget, QFileDialog, QVBoxLayout, QLabel, QPushButton,
                                QLineEdit, QMessageBox,QCheckBox)
 
+from maya_client import MayaClient
+
 class MayaSignerService(QWidget):
   """
   Servicio principal con interfaz gráfica
@@ -126,7 +128,21 @@ class MayaSignerService(QWidget):
     """
     Prueba conexión con Odoo
     """
-    pass
+    try:
+      odoo_client = MayaClient(
+        self.url_input.text(),
+        self.db_input.text(),
+        self.user_input.text(),
+        self.pass_input.text()
+        )
+            
+      if odoo_client.authenticate():
+        QMessageBox.information(self, 'Éxito', 'Conexión exitosa con Odoo')
+      else:
+        QMessageBox.warning(self, 'Error', 'No se pudo autenticar')
+                    
+    except Exception as e:
+        QMessageBox.critical(self, 'Error', f'Error de conexión: {e}')
 
   def browse_certificate(self):
     """
