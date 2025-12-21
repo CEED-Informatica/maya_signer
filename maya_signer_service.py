@@ -3,7 +3,7 @@
 from pathlib import Path
 import json
 from typing import Dict
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton,
+from PySide6.QtWidgets import (QWidget, QFileDialog, QVBoxLayout, QLabel, QPushButton,
                                QLineEdit, QMessageBox,QCheckBox)
 
 class MayaSignerService(QWidget):
@@ -132,5 +132,13 @@ class MayaSignerService(QWidget):
     """
     Abre diálogo para seleccionar certificado
     """
-    pass
+    file_path, _ = QFileDialog.getOpenFileName(
+      self,
+      "Seleccionar certificado",
+      str(Path.home()),
+      "Certificados (*.p12 *.pfx);;Todos los archivos (*.*)"
+    )
+
+    if file_path:
+      self.cert_input.setText(file_path)
       
