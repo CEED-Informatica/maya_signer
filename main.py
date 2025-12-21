@@ -1,6 +1,20 @@
-from signature_worker import SignatureWorker 
 
+import sys
 import os
+
+from signature_worker import SignatureWorker 
+from maya_signer_service import MayaSignerService
+
+import console_message_color as cmc
+
+try:
+  from PySide6.QtWidgets import QApplication
+  HAS_GUI = True
+except ImportError:
+  HAS_GUI = False
+  print(f"{cmc.error()} PySide6 no instalado. Modo consola únicamente.")
+  print(f"        Instala con una de estas dos opciones:\n          - pip install PySide6\n          - {cmc.info('[RECOMENDADA]')} pip install -r requirements.txt")
+
 
 def leer_pdfs_de_carpeta(ruta_carpeta: str):
     """
@@ -53,7 +67,7 @@ if __name__ == '__main__':
     with open(ruta_firmado, 'wb') as f:  
       f.write(signed_pdf)
  """
-  carpeta = "./prueba_pdf"
+"""   carpeta = "./prueba_pdf"
 
   pdfs = leer_pdfs_de_carpeta(carpeta)
 
@@ -61,4 +75,22 @@ if __name__ == '__main__':
   worker.start()
 
 
-  worker.join()
+  worker.join() """
+
+
+def main():       
+  if HAS_GUI:
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+
+    service = MayaSignerService()
+    service.show()
+        
+    sys.exit(app.exec())
+  else:
+    print(f"{cmc.error()} Se requiere PySide6 para GUI")
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

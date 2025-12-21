@@ -2,3 +2,7 @@ pyhanko>=0.20.0
 
 # PKCS#11 soporte para DNIe
 python-pkcs11>=0.7.0
+
+# librería para la creación de interfaces gráficas
+PySide6
+
