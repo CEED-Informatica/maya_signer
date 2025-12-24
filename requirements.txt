@@ -6,3 +6,8 @@ python-pkcs11>=0.7.0
 # librería para la creación de interfaces gráficas
 PySide6
 
+# PyInstaller para generar ejecutables
+pyinstaller>=6.0.0
+
+# Para Windows
+pywin32>=306; sys_platform == 'win32'

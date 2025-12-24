@@ -1,11 +1,27 @@
 
+
+import logging
+
+from email import parser
 import sys
 import os
+from pathlib import Path
+import argparse
 
 from signature_worker import SignatureWorker 
 from maya_signer_service import MayaSignerService
 
 import console_message_color as cmc
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(Path.home() / '.odoo_signer' / 'service.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 try:
   from PySide6.QtWidgets import QApplication
@@ -77,8 +93,66 @@ if __name__ == '__main__':
 
   worker.join() """
 
+def install_protocol():
+  """
+  Instala el protocolo maya://
+  """
+  # Buscar el script de instalación
+  if getattr(sys, 'frozen', False):
+      # Ejecutable compilado
+      base_path = Path(sys._MEIPASS)
+  else:
+      # Modo desarrollo
+      base_path = Path(__file__).parent.parent
+  
+  install_script = base_path / "installer" / "install_protocol.py"
+  
+  if not install_script.exists():
+      print(f"✗ Script de instalación no encontrado: {install_script}")
+      return 1
+  
+  # Ejecutar el instalador
+  import subprocess
+  return subprocess.call([sys.executable, str(install_script)])
 
-def main():       
+
+def uninstall_protocol():
+  """
+  Desinstala el protocolo maya://
+  """
+  if getattr(sys, 'frozen', False):
+    base_path = Path(sys._MEIPASS)
+  else:
+    base_path = Path(__file__).parent.parent
+  
+  uninstall_script = base_path / "installer" / "uninstall.py"
+  
+  if not uninstall_script.exists():
+    print(f"✗ Script de desinstalación no encontrado: {uninstall_script}")
+    return 1
+  
+  import subprocess
+  return subprocess.call([sys.executable, str(uninstall_script)])
+
+
+def main():  
+  parser = argparse.ArgumentParser(description='Maya Signer - Servicio de firma electrónica para Maya')
+
+  parser.add_argument('url', nargs='?', help='URL del protocolo maya://')
+  parser.add_argument('--install-protocol', action='store_true', help='Instala el protocolo maya:// en el sistema')
+  parser.add_argument('--uninstall-protocol', action='store_true', help='Desinstala el protocolo maya:// del sistema')
+  parser.add_argument('--version', action='version', version='Maya Signer 1.0')     
+
+  args = parser.parse_args()
+
+  logger.info(f"Arrancando Maya Signer")
+
+  if args.install_protocol:
+    return install_protocol()
+    
+  if args.uninstall_protocol:
+    return uninstall_protocol()
+    
   if HAS_GUI:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)

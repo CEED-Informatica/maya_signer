@@ -2,3 +2,9 @@
 .venv/
 
 *.pyc
+
+# ignorar la carpeta build
+build/*
+# menos los .py de la carpeta
+!build/*.py
+
