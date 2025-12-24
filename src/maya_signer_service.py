@@ -5,8 +5,12 @@ import logging
 from pathlib import Path
 import json
 from typing import Dict
-from PySide6.QtWidgets import (QWidget, QFileDialog, QVBoxLayout, QLabel, QPushButton,
-                               QInputDialog,QLineEdit, QMessageBox,QCheckBox)
+from PySide6.QtWidgets import (QApplication, QWidget, QFileDialog, 
+                               QVBoxLayout, QLabel, QPushButton,
+                               QInputDialog, QLineEdit, QMessageBox,
+                               QMenu, QCheckBox, QSystemTrayIcon,
+                               QStyle)
+from PySide6.QtGui import QIcon
 
 from odoo_client import OdooClient
 from urllib.parse import urlparse, parse_qs
@@ -33,6 +37,7 @@ class MayaSignerService(QWidget):
     self.odoo_client = None
         
     self.init_ui()
+    self.init_tray()
     
  
   def init_ui(self):
@@ -89,6 +94,37 @@ class MayaSignerService(QWidget):
     layout.addWidget(test_btn)
     
     self.setLayout(layout)
+
+  def init_tray(self):
+    """
+    Inicializa icono en bandeja
+    """
+    self.tray = QSystemTrayIcon(self)
+    
+    # Intenta cargar icono y si no puede usa uno por defecto
+    icon_path = Path(__file__).parent / 'icon.png'
+    if icon_path.exists():
+        self.tray.setIcon(QIcon(str(icon_path)))
+    else:
+        self.tray.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogStart')))
+    
+    menu = QMenu()
+    config_action = menu.addAction('Configuración')
+    config_action.triggered.connect(self.show)
+    
+    quit_action = menu.addAction('Salir')
+    quit_action.triggered.connect(QApplication.quit)
+    
+    self.tray.setContextMenu(menu)
+    self.tray.show()
+    
+    self.tray.showMessage(
+        'Odoo Signer',
+        'Servicio iniciado. Esperando solicitudes...',
+        QSystemTrayIcon.Information,
+        2000
+    )
+    
 
   def load_config(self) -> Dict:
     """
