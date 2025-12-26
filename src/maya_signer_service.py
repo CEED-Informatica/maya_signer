@@ -1,49 +1,199 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Maya Signer Service
+Se ejecuta en background y procesa peticiones de firma
+"""
+
 import logging
+
+import sys
 
 from pathlib import Path
 import json
 from typing import Dict
-from PySide6.QtWidgets import (QApplication, QWidget, QFileDialog, 
-                               QVBoxLayout, QLabel, QPushButton,
-                               QInputDialog, QLineEdit, QMessageBox,
-                               QMenu, QCheckBox, QSystemTrayIcon,
-                               QStyle)
+
+from PySide6.QtWidgets import (QApplication, QMessageBox, QSystemTrayIcon, QStyle,
+                               QMenu)
+from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon
 
 from odoo_client import OdooClient
-from urllib.parse import urlparse, parse_qs
 
-logging.basicConfig(
-        level=logging.DEBUG, 
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    )
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-logger = logging.getLogger(__name__)
+from custom_logging import setup_logger  # logging local
 
-class MayaSignerService(QWidget):
+SERVICE_PORT = 50304                    ## inventado
+LOCK_FILE = Path.home() / ".maya-signer.lock"
+
+logger = setup_logger("service.log", __name__)
+
+class MayaServiceHandler(BaseHTTPRequestHandler):
   """
-  Servicio principal con interfaz gráfica
+  Maneja peticiones HTTP del cliente
   """
     
-  def __init__(self):
+  def log_message(self, format, *args):
+    """
+    Silencia los logs HTTP
+    """
+    pass
+    
+  def do_POST(self):
+      pass
+    
+  def do_GET(self):
+    """
+    ¿Estás vivo?
+    """
+    if self.path == '/health':
+      self.send_response(200)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps({'status': 'running'}).encode())
+
+class MayaSignerService(QObject):
+  """
+  Servicio principal
+  """
+    
+  def __init__(self, app):
     super().__init__()
 
-    self.config_file = Path.home() / '.odoo_signer' / 'config.json'
-    self.config_file.parent.mkdir(exist_ok=True)
-        
-    self.config = self.load_config()
-    self.odoo_client = None
-        
-    self.init_ui()
-    self.init_tray()
+    self.app = app
+      
+    self.tray_icon = None
+  
+    self.version = "0.2a0"
+
+  def create_icon(self) -> QIcon:
+    """
+    Crea el icono en la bandeja del sistema, en caso de que no haya ninguno definido
+    """
+    from PySide6.QtGui import Qt, QPainter, QColor, QFont, QPixmap
+
+    pixmap = QPixmap(64, 64)
+    pixmap.fill(Qt.transparent)
+   
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
     
+    # Fondo azul
+    painter.setBrush(QColor("#2196F3"))
+    painter.setPen(Qt.NoPen)
+    painter.drawRoundedRect(0, 0, 64, 64, 10, 10)
+    
+    # Texto "MySg"
+    painter.setPen(QColor("white"))
+    font = QFont("Arial", 16, QFont.Bold)
+    painter.setFont(font)
+    painter.drawText(pixmap.rect(), Qt.AlignCenter, "MySg")
+    painter.end()
+    
+    icon = QIcon(pixmap)
+
+    return  icon
+
+
+  def init_tray(self):
+    """
+    Inicializa icono en bandeja
+    """
+    self.tray_icon = QSystemTrayIcon(self)
+    
+    # Intenta cargar icono y si no puede usa uno por defecto
+    icon_path = Path(__file__).parent / 'icon.png'
+    if icon_path.exists():
+      self.tray_icon.setIcon(QIcon(str(icon_path)))
+    else:
+      self.tray_icon.setIcon(self.create_icon())
+
+    menu = QMenu()
+    title_action = menu.addAction(f'Maya Signer {self.version}')
+    title_action.setEnabled(False)
+
+    menu.addSeparator()
+
+    connections_action = menu.addAction(f"Conexión activa")
+    connections_action.setEnabled(False)
+
+    menu.addSeparator()
+    
+    
+    quit_action = menu.addAction('Salir')
+    quit_action.triggered.connect(QApplication.quit)
+    
+    self.tray_icon.setContextMenu(menu)
+    self.tray_icon.show()
+    
+    self.tray_icon.showMessage(
+        'Maya Signer',
+        'Servicio iniciado. Esperando solicitudes...',
+        QSystemTrayIcon.Information,
+        2000
+    )
+
+  def start_server(self):
+    """
+    Inicia el servidor HTTP local
+    """
+    try:
+      self.server = HTTPServer(('127.0.0.1', SERVICE_PORT), MayaServiceHandler)
+      self.server.maya_service = self
+      
+      logger.info(f"Maya Signer Service iniciado en puerto {SERVICE_PORT}")
+      
+      # Creo archivo de lock
+      LOCK_FILE.write_text(str(SERVICE_PORT))
+      
+      self.running = True
+      
+      # Ejecuto el servidor en un thread separado
+      server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+      server_thread.start()
+      
+      return True
+      
+    except OSError as e:
+      if e.errno == 48 or e.errno == 98:
+        logger.error(f"Servicio ya está ejecutándose en el puerto {SERVICE_PORT}")
+        return False
+      raise
+    finally:
+      if LOCK_FILE.exists() and not self.running:
+        LOCK_FILE.unlink()
+
+  def run(self):
+    """
+    Prepara el arranque del servicio
+    """
+        
+    logger.info("=" * 60)
+    logger.info("  MAYA SIGNER SERVICE")
+    logger.info("=" * 60)
+        
+    # Icono en tray
+    self.init_tray()
+        
+    # Iniciar servidor
+    if not self.start_server():
+      QMessageBox.critical(
+          None,
+          "Error",
+          "El servicio ya está ejecutándose"
+      )
+      return 1
+    
+    # Ejecutar aplicación Qt
+    return self.app.exec()
  
-  def init_ui(self):
-    """
+    """ def init_ui(self):
+    
     Inicializa interfaz gráfica
-    """
+    
     self.setWindowTitle('Maya Signer - Configuración')
     self.setGeometry(300, 300, 450, 400)
         
@@ -95,41 +245,13 @@ class MayaSignerService(QWidget):
     
     self.setLayout(layout)
 
-  def init_tray(self):
-    """
-    Inicializa icono en bandeja
-    """
-    self.tray = QSystemTrayIcon(self)
-    
-    # Intenta cargar icono y si no puede usa uno por defecto
-    icon_path = Path(__file__).parent / 'icon.png'
-    if icon_path.exists():
-        self.tray.setIcon(QIcon(str(icon_path)))
-    else:
-        self.tray.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogStart')))
-    
-    menu = QMenu()
-    config_action = menu.addAction('Configuración')
-    config_action.triggered.connect(self.show)
-    
-    quit_action = menu.addAction('Salir')
-    quit_action.triggered.connect(QApplication.quit)
-    
-    self.tray.setContextMenu(menu)
-    self.tray.show()
-    
-    self.tray.showMessage(
-        'Odoo Signer',
-        'Servicio iniciado. Esperando solicitudes...',
-        QSystemTrayIcon.Information,
-        2000
-    )
+ 
     
 
   def load_config(self) -> Dict:
-    """
+    
     Carga configuración
-    """
+    
     if self.config_file.exists():
       with open(self.config_file, 'r') as f:
         return json.load(f)
@@ -143,16 +265,16 @@ class MayaSignerService(QWidget):
     }
   
   def save_config(self):
-    """
+    
     Guarda configuración
-    """
+    
     with open(self.config_file, 'w') as f:
       json.dump(self.config, f, indent=2)
  
   def save_settings(self):
-    """
+    
     Guarda configuración
-    """
+    
     self.config = {
       'odoo_url': self.url_input.text(),
       'odoo_db': self.db_input.text(),
@@ -166,15 +288,15 @@ class MayaSignerService(QWidget):
     QMessageBox.information(self, 'Guardado', 'Configuración guardada correctamente')
 
   def on_dnie_changed(self, state):
-    """
+  
     Habilita/deshabilita campo de certificado
-    """
+  
     self.cert_input.setEnabled(state == 0)
     
   def test_connection(self):
-    """
+    
     Prueba conexión con Odoo
-    """
+    
     try:
       odoo_client = OdooClient(
         self.url_input.text(),
@@ -192,9 +314,9 @@ class MayaSignerService(QWidget):
         QMessageBox.critical(self, 'Error', f'Error de conexión: {e}')
 
   def browse_certificate(self):
-    """
+    
     Abre diálogo para seleccionar certificado
-    """
+    
     file_path, _ = QFileDialog.getOpenFileName(
       self,
       "Seleccionar certificado",
@@ -206,9 +328,9 @@ class MayaSignerService(QWidget):
       self.cert_input.setText(file_path)
       
   def handle_protocol(self, url: str):
-    """
+    
     Gestiona llamadas al protocolo maya://sign
-    """
+    
     logger.info(f"Protocolo recibido: {url}")
         
     try:
@@ -243,4 +365,18 @@ class MayaSignerService(QWidget):
        
     except Exception as e:
       logger.error(f"Error manejando protocolo: {str(e)}")
-      QMessageBox.critical(self, 'Error', str(e))
+      QMessageBox.critical(self, 'Error', str(e)) """
+
+def main():
+  """
+  Inicia el servicio persistente
+  """
+  app = QApplication(sys.argv)
+  app.setQuitOnLastWindowClosed(False)
+    
+  service = MayaSignerService(app)
+  return service.run()
+
+
+if __name__ == "__main__":
+  sys.exit(main())

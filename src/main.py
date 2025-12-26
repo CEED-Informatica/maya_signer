@@ -1,101 +1,148 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
+"""
+Punto de entrada al servicio de firma
+Es un cliente muy sencillo de http
 
-import logging
+Se encarga de:
+- redirigir las peticiones al servicio de firma
+- instalar/desinstalar el protocolo maya://
+"""
 
-from email import parser
+from custom_logging import setup_logger  # logging local
+import requests
 import sys
-import os
-from pathlib import Path
 import argparse
 
-from signature_worker import SignatureWorker 
-from maya_signer_service import MayaSignerService
+from urllib.parse import urlparse, parse_qs
 
-import console_message_color as cmc
+import subprocess
+import time
+from maya_signer_service import main as service_main
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(Path.home() / '.odoo_signer' / 'service.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+from pathlib import Path
 
-try:
-  from PySide6.QtWidgets import QApplication
-  HAS_GUI = True
-except ImportError:
-  HAS_GUI = False
-  print(f"{cmc.error()} PySide6 no instalado. Modo consola únicamente.")
-  print(f"        Instala con una de estas dos opciones:\n          - pip install PySide6\n          - {cmc.info('[RECOMENDADA]')} pip install -r requirements.txt")
+SERVICE_PORT = 50304                    ## inventado
+SERVICE_URL = f"http://127.0.0.1:{SERVICE_PORT}"
 
+logger = setup_logger("client.log", __name__)
 
-def leer_pdfs_de_carpeta(ruta_carpeta: str):
-    """
-    Generadao por Grok
-    """
-    lista_pdfs = []    
+def is_service_running():
+  """
+  Verifica si el servicio está ejecutándose
+  """
+  try:
+    response = requests.get(f"{SERVICE_URL}/health", timeout=2)
+    return response.status_code == 200
+  except:
+    return False
 
-    if not os.path.isdir(ruta_carpeta):
-        raise ValueError(f"La carpeta '{ruta_carpeta}' no existe o no es un directorio.")
+def parse_protocol_url(url):
+  """
+  Parsea una URL del protocolo maya://
+  """
+  parsed = urlparse(url)
+  params = parse_qs(parsed.query)
+  
+  return {
+    'batch': params.get('batch', [None])[0],
+    'url': params.get('url', [None])[0],
+    'database': params.get('db', [''])[0],
+  }
+
+def handle_protocol_call(url):
+  """
+  Gestiona la llamada del protocolo
+  """
+  logger.info(f"Procesando: {url}")
     
-    # Recorre todos los archivos de la carpeta
-    for nombre_archivo in os.listdir(ruta_carpeta):
-        ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
+  params = parse_protocol_url(url)
+    
+  if not params['batch'] or not params['url']:
+    logger.error("Faltan parámetros requeridos (batch, url)")
+    return 1
+    
+  # compruebo si el servicio está corriendo
+  if not is_service_running():
+    logger.info("Servicio no encontrado, iniciando...")
+    if not start_service():
+      logger.error("No se pudo iniciar el servicio")
+      return 1
+    
+  # Envio la petición al servicio
+  if send_signature_request(params):
+    logger.info("Petición procesada correctamente")
+    return 0
+  else:
+    return 1
+  
+def send_signature_request(data):
+  """
+  Envía petición de firma al servicio
+  """
+  pass
+   
+def start_service():
+  """
+  Inicia el servicio persistente en background
+  """
+  logger.info("Iniciando Maya Signer Service...")
+    
+  # Buscar el ejecutable del servicio
+  if getattr(sys, 'frozen', False):
+    # Ejecutable compilado
+    base_path = Path(sys.executable).parent
+    service_exe = base_path / "maya-signer-service"
+    if sys.platform == 'win32':
+      service_exe = base_path / "maya-signer-service.exe"
+  else:
+    # Modo desarrollo
+    base_path = Path(__file__).parent
+    service_exe = base_path / "maya_signer_service.py"
+  
+  if not service_exe.exists():
+    logger.error(f"Servicio no encontrado: {service_exe}")
+    return False
+  
+  try:
+    # Iniciar en background
+    if sys.platform == 'win32':
+      # Windows: usar subprocess sin ventana
+      DETACHED_PROCESS = 0x00000008
+      subprocess.Popen(
+          [str(service_exe)],
+          creationflags=DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+          stdout=subprocess.DEVNULL,
+          stderr=subprocess.DEVNULL
+      )
+    else:
+      # Unix: usar nohup
+      subprocess.Popen(
+          [sys.executable, str(service_exe)],
+          stdout=subprocess.DEVNULL,
+          stderr=subprocess.DEVNULL,
+          start_new_session=True
+      )
+  
+    # Espero a que inicie
+    for _ in range(10):
+      time.sleep(0.5)
+      if is_service_running():
+        logger.info("Servicio iniciado correctamente")
+        return True
+  
+    logger.info("El servicio tardó demasiado en iniciar")
+    return False
         
-        # Solo procesamos archivos (no subcarpetas) que terminen en .pdf
-        if os.path.isfile(ruta_completa) and nombre_archivo.lower().endswith('.pdf'):
-            try:
-                with open(ruta_completa, 'rb') as f:
-                    pdf_bytes = f.read()
-                
-                lista_pdfs.append({
-                    'pdf_filename': nombre_archivo,           # ej: "certificado_123.pdf"
-                    'pdf_bytes': pdf_bytes,                   # bytes del PDF
-                })
-                
-                print(f"✓ Leído: {nombre_archivo}")
-                
-            except Exception as e:
-                print(f"✗ Error leyendo {nombre_archivo}: {e}")
+  except Exception as e:
+    logger.error(f"Error al iniciar servicio: {str(e)}")
+    return False
     
-    print(f"\nTotal de PDFs leídos: {len(lista_pdfs)}")
-
-    return lista_pdfs
-
-if __name__ == '__main__':
-  """ signer = PyHankoSigner(cert_password='XXXXXXXXXX')
-
-    ruta = "Prueba.pdf"
-    ruta_firmado = "Prueba_signed.pdf"
-
-    with open(ruta, 'rb') as f:
-        pdf_bytes = f.read()
-
-    signed_pdf = signer.sign_pdf(
-        pdf_bytes,
-        reason="Firmado digitalmente desde Maya | Signer",
-        location="España"
-    )
-
-    with open(ruta_firmado, 'wb') as f:  
-      f.write(signed_pdf)
- """
-"""   carpeta = "./prueba_pdf"
-
-  pdfs = leer_pdfs_de_carpeta(carpeta)
-
-  worker = SignatureWorker(pdfs, use_dnie = True, cert_password = 'XXXXXXXXXX')
-  worker.start()
-
-
-  worker.join() """
-
 def install_protocol():
   """
   Instala el protocolo maya://
+  Creado por Claude Sonnet 4.5
   """
   # Buscar el script de instalación
   if getattr(sys, 'frozen', False):
@@ -115,10 +162,10 @@ def install_protocol():
   import subprocess
   return subprocess.call([sys.executable, str(install_script)])
 
-
 def uninstall_protocol():
   """
   Desinstala el protocolo maya://
+  Creado por Claude Sonnet 4.5
   """
   if getattr(sys, 'frozen', False):
     base_path = Path(sys._MEIPASS)
@@ -134,6 +181,12 @@ def uninstall_protocol():
   import subprocess
   return subprocess.call([sys.executable, str(uninstall_script)])
 
+def start_service_command():
+  """
+  Inicia el servicio manualmente
+  ¡¡Usado para pruebas!!
+  """
+  return service_main()
 
 def main():  
   parser = argparse.ArgumentParser(description='Maya Signer - Servicio de firma electrónica para Maya')
@@ -141,6 +194,7 @@ def main():
   parser.add_argument('url', nargs='?', help='URL del protocolo maya://')
   parser.add_argument('--install-protocol', action='store_true', help='Instala el protocolo maya:// en el sistema')
   parser.add_argument('--uninstall-protocol', action='store_true', help='Desinstala el protocolo maya:// del sistema')
+  parser.add_argument('--start-service', action='store_true', help='Inicia el servicio')
   parser.add_argument('--version', action='version', version='Maya Signer 1.0')     
 
   args = parser.parse_args()
@@ -152,24 +206,22 @@ def main():
     
   if args.uninstall_protocol:
     return uninstall_protocol()
+  
+  if args.start_service:
+    return start_service_command()
+  
+  # Si no hay argumentos, arranco servicio por defecto
+  if not args.url:
+    logger.info("Iniciando Maya Signer Service (Modo desarrollo)...")
+    return start_service_command()
     
-  if HAS_GUI:
-    app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
-
-    service = MayaSignerService()
+  # Gestiona la llamada del protocolo
+  if args.url.startswith('maya://'):
+    return handle_protocol_call(args.url)
     
-    # Si se pasa URL como argumento, procesarla
-    if len(sys.argv) > 1:
-      service.handle_protocol(sys.argv[1])
-    else:
-      service.show()
-        
-    sys.exit(app.exec())
-  else:
-    print(f"{cmc.error()} Se requiere PySide6 para GUI")
-    sys.exit(1)
+  logger.error(f"URL no reconocida: {args.url}")
 
+  return 1
 
 if __name__ == '__main__':
-    main()
+  sys.exit(main())  # entra, ejecuta el servidor y sale
