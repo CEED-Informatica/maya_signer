@@ -40,8 +40,8 @@ class OdooClient(object):
     
     # Endpoints XML-RPC
     try:
-      self.common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
-      self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
+      self.common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common', allow_none=True)
+      self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object', allow_none=True)
     except Exception as e:
       raise OdooConnectionError(f"No se pudo conectar a {self.url}: {str(e)}")
     
