@@ -6,7 +6,14 @@
   "configurations": [
 
     {
-      "name": "Python Debugger: Current File",
+      "name": "Python Debugger: sin url",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "src/main.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python Debugger: con url",
       "type": "debugpy",
       "request": "launch",
       "program": "src/main.py",
