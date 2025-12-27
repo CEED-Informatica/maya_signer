@@ -43,7 +43,25 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
     pass
     
   def do_POST(self):
-      pass
+    """
+    Maneja peticiones POST
+    Procesa la petición de firma de documentos
+    """
+    try:
+      content_length = int(self.headers['Content-Length'])
+      post_data = self.rfile.read(content_length)
+      data = json.loads(post_data.decode('utf-8'))
+
+      self.send_response(200)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps({'status': 'processing'}).encode())
+          
+    except Exception as e:
+      logger.error(f"Error en handler: {str(e)}")
+      self.send_response(500)
+      self.end_headers()
+      self.wfile.write(json.dumps({'error': str(e)}).encode())
     
   def do_GET(self):
     """

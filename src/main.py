@@ -81,7 +81,24 @@ def send_signature_request(data):
   """
   Envía petición de firma al servicio
   """
-  pass
+  try:
+    response = requests.post(
+        SERVICE_URL,
+        json=data,
+        timeout=10
+    )
+    
+    if response.status_code == 200:
+      logger.info("Petición enviada al servicio")
+      return True
+    else:
+      logger.error(f"Error del servicio: {response.status_code}")
+      return False
+        
+  except Exception as e:
+    logger.error(f"Error al comunicar con el servicio: {str(e)}")
+    return False
+
    
 def start_service():
   """
