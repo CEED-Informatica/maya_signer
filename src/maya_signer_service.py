@@ -64,8 +64,10 @@ class MayaSignerService(QObject):
     super().__init__()
 
     self.app = app
-      
+    
+    self.server = None
     self.tray_icon = None
+    self.running = False
   
     self.version = "0.2a0"
 
@@ -122,9 +124,8 @@ class MayaSignerService(QObject):
 
     menu.addSeparator()
     
-    
     quit_action = menu.addAction('Salir')
-    quit_action.triggered.connect(QApplication.quit)
+    quit_action.triggered.connect(self.quit_service)
     
     self.tray_icon.setContextMenu(menu)
     self.tray_icon.show()
@@ -166,6 +167,16 @@ class MayaSignerService(QObject):
       if LOCK_FILE.exists() and not self.running:
         LOCK_FILE.unlink()
 
+  def quit_service(self):
+    """
+    Cierra el servicio
+    """
+    self.running = False
+    if self.server:
+        self.server.shutdown()
+    
+    self.app.quit()
+  
   def run(self):
     """
     Prepara el arranque del servicio
