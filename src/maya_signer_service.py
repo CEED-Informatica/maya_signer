@@ -12,13 +12,14 @@ import sys
 
 from pathlib import Path
 import json
-from typing import Dict
+import time
 
 from PySide6.QtWidgets import (QApplication, QMessageBox, QSystemTrayIcon, QStyle,
-                               QMenu)
-from PySide6.QtCore import QObject
+                               QMenu, QDialog)
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon
 
+from credentials_dialog import CredentialsDialog
 from odoo_client import OdooClient
 
 import threading
@@ -30,6 +31,12 @@ SERVICE_PORT = 50304                    ## inventado
 LOCK_FILE = Path.home() / ".maya-signer.lock"
 
 logger = setup_logger("service.log", __name__)
+
+class SignalEmitter(QObject):
+  """
+  Emisor de señales (eventos) para comunicación con Qt
+  """
+  show_credentials_dialog = Signal(str, str)  # odoo_url, database
 
 class MayaServiceHandler(BaseHTTPRequestHandler):
   """
@@ -52,10 +59,27 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
       post_data = self.rfile.read(content_length)
       data = json.loads(post_data.decode('utf-8'))
 
-      self.send_response(200)
+      """ self.send_response(200)
       self.send_header('Content-type', 'application/json')
       self.end_headers()
       self.wfile.write(json.dumps({'status': 'processing'}).encode())
+      """
+      # Obtener credenciales almacenadas
+      credentials = self.server.maya_signer_service.get_credentials(data['url'])
+
+      if not credentials:
+        # Solicitar credenciales vía dialogo Qt
+        self.server.maya_signer_service.signals.show_credentials_dialog.emit(
+          data['url'],
+          data.get('database', '') # por si en un futuro permito firmas sin asociarlas a BD
+        )
+        
+      """   # Esperar a que se ingresen (timeout 60s)
+        for _ in range(60):
+          time.sleep(2)
+          credentials = self.server.maya_signer_service.get_credentials(data['url'])
+          if credentials:
+              break """
           
     except Exception as e:
       logger.error(f"Error en handler: {str(e)}")
@@ -85,9 +109,56 @@ class MayaSignerService(QObject):
     
     self.server = None
     self.tray_icon = None
+    self.tray_menu = None  
     self.running = False
+    # diccionario de credenciales.
+    # lo normal es que haya una única entrada, 
+    # pero permite varias por si hubiera diferentes servidores para diferentes tareas 
+    # (Gestion documental/Gestion alumnos)
+    self.credentials_store = {}  
   
     self.version = "0.2a0"
+
+    # Señales para Qt
+    self.signals = SignalEmitter()
+    self.signals.show_credentials_dialog.connect(self._show_credentials_dialog)
+
+  def get_credentials(self, odoo_url):
+    """
+    Obtiene credenciales almacenadas por servidor
+    """
+    return self.credentials_store.get(odoo_url)
+  
+  def store_credentials(self, odoo_url: str, username: str, password: str, 
+                        cert_password: str, use_dnie: bool, cert_path: str):
+    """
+    Almacena credenciales en memoria
+    """
+    self.credentials_store[odoo_url] = {
+        'username': username,
+        'password': password,
+        'cert_password': cert_password,
+        'use_dni': use_dnie,
+        'cert_path': cert_path  
+    }
+    
+    self.update_tray_menu()
+
+  def _show_credentials_dialog(self, odoo_url: str, database: str):
+    """
+    Muestra diálogo de credenciales
+    """
+    dialog = CredentialsDialog(odoo_url, database)
+        
+    if dialog.exec() == QDialog.Accepted and dialog.credentials:
+      self.store_credentials(
+          odoo_url,
+          dialog.credentials['username'],
+          dialog.credentials['password'],
+          dialog.credentials['cert_password'],
+          dialog.credentials['use_dnie'],
+          dialog.credentials['cert_path'],
+      )
 
   def create_icon(self) -> QIcon:
     """
@@ -117,7 +188,6 @@ class MayaSignerService(QObject):
 
     return  icon
 
-
   def init_tray(self):
     """
     Inicializa icono en bandeja
@@ -131,21 +201,8 @@ class MayaSignerService(QObject):
     else:
       self.tray_icon.setIcon(self.create_icon())
 
-    menu = QMenu()
-    title_action = menu.addAction(f'Maya Signer {self.version}')
-    title_action.setEnabled(False)
+    self.update_tray_menu()
 
-    menu.addSeparator()
-
-    connections_action = menu.addAction(f"Conexión activa")
-    connections_action.setEnabled(False)
-
-    menu.addSeparator()
-    
-    quit_action = menu.addAction('Salir')
-    quit_action.triggered.connect(self.quit_service)
-    
-    self.tray_icon.setContextMenu(menu)
     self.tray_icon.show()
     
     self.tray_icon.showMessage(
@@ -155,13 +212,46 @@ class MayaSignerService(QObject):
         2000
     )
 
+  def update_tray_menu(self):
+    """
+    Actualiza el menú del system tray
+    
+    Destruye el menú anterior para evitar memory leaks.
+    Qt no libera automáticamente el QMenu viejo al hacer setContextMenu().
+    """
+    # Destruyo menú anterior si existe
+    if self.tray_menu is not None:
+      self.tray_icon.setContextMenu(None)
+      self.tray_menu.clear()
+      self.tray_menu.deleteLater()  # destruyo el objeto Qt
+      self.tray_menu = None
+    
+    self.tray_menu = QMenu()
+    title_action = self.tray_menu.addAction(f'Maya Signer {self.version}')
+    title_action.setEnabled(False)
+
+    self.tray_menu.addSeparator()
+
+    connections_action = self.tray_menu.addAction(f"Conexiones activas: {'OK' if self.credentials_store else 'Ninguna'} ({len(self.credentials_store)})")
+    connections_action.setEnabled(False)
+
+    clear_action = self.tray_menu.addAction("Borrar credenciales")
+    clear_action.triggered.connect(self.clear_credentials)
+
+    self.tray_menu.addSeparator()
+    
+    quit_action = self.tray_menu.addAction('Salir')
+    quit_action.triggered.connect(self.quit_service)
+    
+    self.tray_icon.setContextMenu(self.tray_menu)
+   
   def start_server(self):
     """
     Inicia el servidor HTTP local
     """
     try:
       self.server = HTTPServer(('127.0.0.1', SERVICE_PORT), MayaServiceHandler)
-      self.server.maya_service = self
+      self.server.maya_signer_service = self
       
       logger.info(f"Maya Signer Service iniciado en puerto {SERVICE_PORT}")
       
@@ -185,6 +275,14 @@ class MayaSignerService(QObject):
       if LOCK_FILE.exists() and not self.running:
         LOCK_FILE.unlink()
 
+  def clear_credentials(self):
+    """
+    Borra todas las credenciales almacenadas
+    """
+    self.credentials_store.clear()
+    self.update_tray_menu()
+    
+  
   def quit_service(self):
     """
     Cierra el servicio
@@ -316,11 +414,6 @@ class MayaSignerService(QObject):
 
     QMessageBox.information(self, 'Guardado', 'Configuración guardada correctamente')
 
-  def on_dnie_changed(self, state):
-  
-    Habilita/deshabilita campo de certificado
-  
-    self.cert_input.setEnabled(state == 0)
     
   def test_connection(self):
     
@@ -342,19 +435,6 @@ class MayaSignerService(QObject):
     except Exception as e:
         QMessageBox.critical(self, 'Error', f'Error de conexión: {e}')
 
-  def browse_certificate(self):
-    
-    Abre diálogo para seleccionar certificado
-    
-    file_path, _ = QFileDialog.getOpenFileName(
-      self,
-      "Seleccionar certificado",
-      str(Path.home()),
-      "Certificados (*.p12 *.pfx);;Todos los archivos (*.*)"
-    )
-
-    if file_path:
-      self.cert_input.setText(file_path)
       
   def handle_protocol(self, url: str):
     
