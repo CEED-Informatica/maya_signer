@@ -133,6 +133,11 @@ class CredentialsDialog(QDialog):
 
     layout.addLayout(right_layout) 
 
+    # Nota informativa
+    note_label = QLabel("Las credenciales se guardan en memoria solo durante esta sesión")
+    note_label.setStyleSheet("color: #999; font-size: 12px;")
+    note_label.setAlignment(Qt.AlignCenter)
+
     # Botones
     button_layout = QHBoxLayout()
     button_layout.addStretch()
@@ -140,9 +145,27 @@ class CredentialsDialog(QDialog):
     cancel_btn = QPushButton("Cancelar")
     cancel_btn.clicked.connect(self.reject)
     button_layout.addWidget(cancel_btn)
-
+      
+    accept_btn = QPushButton("Conectar")
+    accept_btn.setDefault(True)
+    accept_btn.clicked.connect(self.accept_credentials)
+    accept_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                padding: 6px 18px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+    button_layout.addWidget(accept_btn)
+     
 
     main_layout.addLayout(layout) 
+    main_layout.addWidget(note_label)
     main_layout.addLayout(button_layout) 
         
     self.setLayout(main_layout)
@@ -156,8 +179,11 @@ class CredentialsDialog(QDialog):
     username = self.username_input.text().strip()
     password = self.password_input.text()
     cert_password = self.cert_password_input.text()
+    cert_path = self.cert_input.text().strip()
+    use_dnie = self.dnie_checkbox.isChecked()
     
-    if not username or not password or not cert_password:
+    if not username or not password or \
+       not cert_password or (not use_dnie and not cert_path):
       QMessageBox.warning(
           self,
           "Campos incompletos",
@@ -168,7 +194,9 @@ class CredentialsDialog(QDialog):
     self.credentials = {
       'username': username,
       'password': password,
-      'cert_password': cert_password
+      'cert_password': cert_password,
+      'cert_path': cert_path,
+      'use_dnie': use_dnie
     }
     
     self.accept()
