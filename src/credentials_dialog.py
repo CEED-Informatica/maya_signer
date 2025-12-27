@@ -4,6 +4,7 @@
 """
 Dialogo PySide6 que solicita las credenciales
 """
+import logging
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,QCheckBox,
@@ -12,6 +13,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from pathlib import Path
+
+logger = logging.getLogger("maya_signer")
 
 class CredentialsDialog(QDialog):
   """
@@ -23,14 +26,16 @@ class CredentialsDialog(QDialog):
 
     # Resultado
     self.credentials = None
+    self.url = odoo_url
+    self.database = database
         
     self.setWindowTitle('Maya Signer - Credenciales')
     self.setModal(True)
     
-    self.setGeometry(300, 300, 750, 300)
+    self.setGeometry(300, 300, 750, 340)
     self.setMinimumWidth(550)
-    self.setMinimumHeight(300)
-    self.setMaximumHeight(300)
+    self.setMinimumHeight(340)
+    self.setMaximumHeight(340)
 
     main_layout = QVBoxLayout()
         
@@ -133,6 +138,12 @@ class CredentialsDialog(QDialog):
 
     layout.addLayout(right_layout) 
 
+    # status
+    self.status_label = QLabel("")
+    self.status_label.setAlignment(Qt.AlignCenter)
+    self.status_label.setWordWrap(True)
+    self.status_label.setStyleSheet("font-size: 11px; padding: 5px;")
+
     # Nota informativa
     note_label = QLabel("Las credenciales se guardan en memoria solo durante esta sesión")
     note_label.setStyleSheet("color: #999; font-size: 12px;")
@@ -141,6 +152,10 @@ class CredentialsDialog(QDialog):
     # Botones
     button_layout = QHBoxLayout()
     button_layout.addStretch()
+
+    self.test_btn = QPushButton("Probar Conexión")
+    self.test_btn.clicked.connect(self.test_connection)
+    button_layout.addWidget(self.test_btn)
     
     cancel_btn = QPushButton("Cancelar")
     cancel_btn.clicked.connect(self.reject)
@@ -150,21 +165,21 @@ class CredentialsDialog(QDialog):
     accept_btn.setDefault(True)
     accept_btn.clicked.connect(self.accept_credentials)
     accept_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                padding: 6px 18px;
-                border: none;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
+        QPushButton {
+            background-color: #2196F3;
+            color: white;
+            padding: 6px 18px;
+            border: none;
+            border-radius: 4px;
+        }
+        QPushButton:hover {
+            background-color: #1976D2;
+        }
         """)
     button_layout.addWidget(accept_btn)
-     
 
     main_layout.addLayout(layout) 
+    main_layout.addWidget(self.status_label)
     main_layout.addWidget(note_label)
     main_layout.addLayout(button_layout) 
         
@@ -221,3 +236,119 @@ class CredentialsDialog(QDialog):
 
     if file_path:
       self.cert_input.setText(file_path)
+
+  def show_status(self, message: str, status_type: str):
+    """
+    Muestra un mensaje de estado
+    
+    Args:
+      message: Texto a mostrar
+      status_type: 'info', 'success', 'error', 'warning'
+    """
+    colors = {
+        'info': '#2196F3',
+        'success': '#4CAF50',
+        'error': '#F44336',
+        'warning': '#FF9800'
+    }
+    
+    color = colors.get(status_type, colors['info'])
+    
+    self.status_label.setText(message)
+    self.status_label.setStyleSheet(f"""
+        color: {color};
+        border: 1px solid {color};
+        border-radius: 4px;
+        padding: 8px;
+        font-size: 11px;
+    """)
+
+  def test_connection(self):
+    """
+    Prueba la conexión con Odoo en un thread separado
+    """
+    
+    username = self.username_input.text().strip()
+    password = self.password_input.text()
+    
+    if not username or not password:
+      self.show_status(
+          "Son necesarios el usuario y contraseña de Odoo",
+          "warning"
+      )
+      return
+    
+    # Deshabilitar botón durante la prueba
+    self.test_btn.setEnabled(False)
+    self.test_btn.setText("Probando...")
+    self.show_status("Conectando con Odoo...", "info")
+
+    logger.info("Probando conexión con Odoo...")
+    
+    # Cero un thread para no bloquear la UI
+    from PySide6.QtCore import QThread, Signal
+    
+    class TestConnectionThread(QThread):
+      """
+      Thread para probar conexión sin bloquear UI
+      """
+      finished = Signal(bool, str)  # success, message
+      
+      def __init__(self, url, database, username, password):
+        super().__init__()
+
+        self.url = url
+        self.database = database
+        self.username = username
+        self.password = password
+        
+      def run(self):
+        """
+        Ejecuta el test en background
+        """
+        try:
+          from odoo_client import OdooClient
+            
+          client = OdooClient(self.url,self.database,self.username,self.password)
+
+          # Test de conexión
+          result = client.test_connection()
+              
+          if result['success']:
+            # Test de autenticación
+            if client.authenticate():
+                msg = f"Conectado a Odoo {result.get('server_version', '')}"
+                self.finished.emit(True, msg)
+            else:
+                self.finished.emit(False, "Credenciales inválidas")
+          else:
+            error = result.get('error', 'Error desconocido')
+            self.finished.emit(False, f"Error: {error}")
+              
+        except Exception as e:
+          self.finished.emit(False, f"Error: {str(e)}")
+          logger.error(f"Error en TestConnectionThread: {str(e)}")
+  
+    # Crear y conectar thread
+    self.test_thread = TestConnectionThread(self.url, self.database, username, password)
+    self.test_thread.finished.connect(self.on_test_finished)
+    self.test_thread.start()
+
+  def on_test_finished(self, success: bool, message: str):
+    """
+    Callback cuando termina el test de conexión
+    """
+    
+    # activo botón
+    self.test_btn.setEnabled(True)
+    self.test_btn.setText("Probar Conexión")
+    
+    if success:
+        self.show_status(message, "success")
+    else:
+        self.show_status(message, "error")
+    
+    # Limpio thread
+    if self.test_thread:
+      self.test_thread.deleteLater()
+      self.test_thread = None

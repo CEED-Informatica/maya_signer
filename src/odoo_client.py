@@ -7,12 +7,7 @@ import xmlrpc.client
 
 from typing import Dict, List
 
-logging.basicConfig(
-        level=logging.DEBUG, 
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    )
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("maya_signer")
 
 class OdooConnectionError(Exception):
     """
@@ -182,3 +177,31 @@ class OdooClient(object):
     logger.info(f"✓ Descargados {len(unsigned_docs)} PDFs del lote {batch_id}")
 
     return unsigned_docs
+
+  def test_connection(self) -> Dict:
+    """
+    Prueba la conexión con Odoo
+    
+    Returns:
+      Dict con información de la conexión
+    """
+    try:
+      version_info = self.common.version()
+      
+      result = {
+          'success': True,
+          'server_version': version_info.get('server_version'),
+          'protocol_version': version_info.get('protocol_version'),
+          'url': self.url,
+          'database': self.db
+      }
+      
+      logger.info(f"Conexión realizada con éxito a {self.url}")
+      return result
+      
+    except Exception as e:
+      logger.error(f"Error de conexión: {e}")
+      return {
+        'success': False,
+        'error': str(e)
+      }

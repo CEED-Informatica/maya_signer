@@ -30,7 +30,7 @@ from custom_logging import setup_logger  # logging local
 SERVICE_PORT = 50304                    ## inventado
 LOCK_FILE = Path.home() / ".maya-signer.lock"
 
-logger = setup_logger("service.log", __name__)
+logger = setup_logger("service.log", "maya_signer")
 
 class SignalEmitter(QObject):
   """
@@ -282,7 +282,6 @@ class MayaSignerService(QObject):
     self.credentials_store.clear()
     self.update_tray_menu()
     
-  
   def quit_service(self):
     """
     Cierra el servicio
