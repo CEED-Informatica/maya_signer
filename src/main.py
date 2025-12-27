@@ -92,7 +92,8 @@ def send_signature_request(data):
       logger.info("Petición enviada al servicio")
       return True
     else:
-      logger.error(f"Error del servicio: {response.status_code}")
+      content = response.json()
+      logger.error(f"Error del servicio: {response.status_code} / {content.get('error', 'Unknown error')}")
       return False
         
   except Exception as e:
