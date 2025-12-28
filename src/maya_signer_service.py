@@ -150,7 +150,7 @@ class MayaSignerService(QObject):
         'username': username,
         'password': password,
         'cert_password': cert_password,
-        'use_dni': use_dnie,
+        'use_dnie': use_dnie,
         'cert_path': cert_path  
     }
     
