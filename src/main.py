@@ -85,7 +85,7 @@ def send_signature_request(data):
     response = requests.post(
         SERVICE_URL,
         json=data,
-        timeout=10
+        timeout=120
     )
     
     if response.status_code == 200:
