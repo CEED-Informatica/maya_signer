@@ -63,18 +63,21 @@ class OdooClient(object):
     except xmlrpc.client.Fault as e:
       raise OdooAuthenticationError(f"Error XML-RPC: {e.faultString}")
     
-  def execute(self, model: str, method: str, *args, **kwargs):
+  def execute(self, model: str, method: str, args = None, kwargs = None):
     """
     Ejecuta un método en Odoo
     """
     if not self.uid:
       raise OdooAuthenticationError("No autenticado. Hay que ejecutar previamente authenticate()")
     
+    args = args or []
+    kwargs = kwargs or {}
+    
     try:
-      logger.info(f"Ejecutando {model}.{method}")
-      
+      #logger.info(f"Ejecutando {self.db} {model}.{method}  args: {args} ({type(args)}), kwargs: {kwargs}")
+     
       result = self.models.execute_kw(
-          self.database,
+          self.db,
           self.uid,
           self.password,
           model,
@@ -82,7 +85,7 @@ class OdooClient(object):
           args,
           kwargs
       )
-      
+   
       return result
       
     except xmlrpc.client.Fault as e:
@@ -100,8 +103,8 @@ class OdooClient(object):
       batch = self.execute(
             'maya_core.signature.batch',
             'read',
-            [batch_id],
-            {'fields': ['name', 'document_ids', 'state']}
+            args = [[batch_id]],
+            kwargs = {'fields': ['name', 'document_ids', 'state']}
       )
       if batch:
         logger.info(f"Lote {batch_id}: {batch[0]['name']} - Estado: {batch[0]['state']}")
@@ -153,26 +156,26 @@ class OdooClient(object):
       'maya_core.signature.batch_document',
       'read',
       document_ids,
-      {'fields': ['id', 'pdf_content', 'pdf_filename', 'model', 'record_id','is_signed']}
+      {'fields': ['id', 'pdf_content', 'filename', 'state']}
     )
         
     # Decodifico los PDFs
     unsigned_docs = []
     for doc in documents:
-      if doc.get('is_signed'):
-        logger.warning(f"Documento {doc['id']} ya está firmado, omitiendo...")
+      if doc['state'] == 'signed':
+        logger.warning(f"\tDocumento {doc['id']} ya está firmado, omitiendo...")
         continue
     
       if not doc.get('pdf_content'):
-        logger.warning(f"Documento {doc['id']} no tiene contenido PDF")
+        logger.warning(f"\tDocumento {doc['id']} no tiene contenido PDF")
         continue
       
       try:
         doc['pdf_bytes'] = base64.b64decode(doc['pdf_content'])
         unsigned_docs.append(doc)
-        logger.debug(f"PDF descargado: {doc['pdf_filename']} ({len(doc['pdf_bytes'])} bytes)")
+        logger.debug(f"\tPDF descargado: {doc['filename']} ({len(doc['pdf_bytes'])} bytes)")
       except Exception as e:
-        logger.error(f"Error decodificando PDF {doc['id']}: {e}")
+        logger.error(f"\tError decodificando PDF {doc['id']}: {e}")
         
     logger.info(f"✓ Descargados {len(unsigned_docs)} PDFs del lote {batch_id}")
 

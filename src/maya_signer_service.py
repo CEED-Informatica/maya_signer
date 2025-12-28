@@ -59,11 +59,6 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
       post_data = self.rfile.read(content_length)
       data = json.loads(post_data.decode('utf-8'))
 
-      """ self.send_response(200)
-      self.send_header('Content-type', 'application/json')
-      self.end_headers()
-      self.wfile.write(json.dumps({'status': 'processing'}).encode())
-      """
       # Obtener credenciales almacenadas
       credentials = self.server.maya_signer_service.get_credentials(data['url'])
 
@@ -74,13 +69,30 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
           data.get('database', '') # por si en un futuro permito firmas sin asociarlas a BD
         )
         
-      """   # Esperar a que se ingresen (timeout 60s)
+        # Esperar a que se introduzcan (timeout 120s)
         for _ in range(60):
           time.sleep(2)
           credentials = self.server.maya_signer_service.get_credentials(data['url'])
           if credentials:
-              break """
+              break
           
+      if credentials:
+        # Procesar firma en background
+        threading.Thread(
+            target=self.server.maya_signer_service.process_signature,
+            args=(data, credentials),
+            daemon=True
+        ).start()
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'status': 'processing'}).encode())
+      else:
+        self.send_response(401)
+        self.end_headers()
+        self.wfile.write(json.dumps({'error': 'credentials_required'}).encode())
+  
     except Exception as e:
       logger.error(f"Error en handler: {str(e)}")
       self.send_response(500)
@@ -288,7 +300,7 @@ class MayaSignerService(QObject):
     """
     self.running = False
     if self.server:
-        self.server.shutdown()
+      self.server.shutdown()
     
     self.app.quit()
   
@@ -304,7 +316,7 @@ class MayaSignerService(QObject):
     # Icono en tray
     self.init_tray()
         
-    # Iniciar servidor
+    # Iniciao el servidor
     if not self.start_server():
       QMessageBox.critical(
           None,
@@ -313,65 +325,10 @@ class MayaSignerService(QObject):
       )
       return 1
     
-    # Ejecutar aplicación Qt
+    # Ejecuto la aplicación Qt
     return self.app.exec()
  
-    """ def init_ui(self):
-    
-    Inicializa interfaz gráfica
-    
-    self.setWindowTitle('Maya Signer - Configuración')
-    self.setGeometry(300, 300, 450, 400)
-        
-    layout = QVBoxLayout()
-    
-    # Campos
-    layout.addWidget(QLabel('URL Maya/Odoo:'))
-    self.url_input = QLineEdit(self.config.get('odoo_url', ''))
-    layout.addWidget(self.url_input)
-    
-    layout.addWidget(QLabel('Base de datos:'))
-    self.db_input = QLineEdit(self.config.get('odoo_db', ''))
-    layout.addWidget(self.db_input)
-    
-    layout.addWidget(QLabel('Usuario:'))
-    self.user_input = QLineEdit(self.config.get('odoo_username', ''))
-    layout.addWidget(self.user_input)
-    
-    layout.addWidget(QLabel('Contraseña:'))
-    self.pass_input = QLineEdit()
-    self.pass_input.setEchoMode(QLineEdit.Password)
-    layout.addWidget(self.pass_input)
-    
-    # Checkbox DNIe
-    self.dnie_checkbox = QCheckBox('Usar DNIe')
-    self.dnie_checkbox.setChecked(self.config.get('use_dnie', False))
-    self.dnie_checkbox.stateChanged.connect(self.on_dnie_changed)
-    layout.addWidget(self.dnie_checkbox)
-    
-    layout.addWidget(QLabel('Ruta certificado .p12 (solo si no usas DNIe):'))
-    cert_layout = QVBoxLayout()
-    self.cert_input = QLineEdit(self.config.get('cert_path', ''))
-    self.cert_input.setEnabled(not self.dnie_checkbox.isChecked())
-    cert_layout.addWidget(self.cert_input)
-    
-    browse_btn = QPushButton('Examinar...')
-    browse_btn.clicked.connect(self.browse_certificate)
-    cert_layout.addWidget(browse_btn)
-    layout.addLayout(cert_layout)
-    
-    # Botones
-    save_btn = QPushButton('Guardar configuración')
-    save_btn.clicked.connect(self.save_settings)
-    layout.addWidget(save_btn)
-    
-    test_btn = QPushButton('Probar conexión')
-    test_btn.clicked.connect(self.test_connection)
-    layout.addWidget(test_btn)
-    
-    self.setLayout(layout)
-
- 
+    """ 
     
 
   def load_config(self) -> Dict:
@@ -413,27 +370,7 @@ class MayaSignerService(QObject):
 
     QMessageBox.information(self, 'Guardado', 'Configuración guardada correctamente')
 
-    
-  def test_connection(self):
-    
-    Prueba conexión con Odoo
-    
-    try:
-      odoo_client = OdooClient(
-        self.url_input.text(),
-        self.db_input.text(),
-        self.user_input.text(),
-        self.pass_input.text()
-        )
-            
-      if odoo_client.authenticate():
-        QMessageBox.information(self, 'Éxito', 'Conexión exitosa con Odoo')
-      else:
-        QMessageBox.warning(self, 'Error', 'No se pudo autenticar')
-                    
-    except Exception as e:
-        QMessageBox.critical(self, 'Error', f'Error de conexión: {e}')
-
+  
       
   def handle_protocol(self, url: str):
     
@@ -474,6 +411,36 @@ class MayaSignerService(QObject):
     except Exception as e:
       logger.error(f"Error manejando protocolo: {str(e)}")
       QMessageBox.critical(self, 'Error', str(e)) """
+    
+  def process_signature(self, data, credentials):
+    """
+    Procesa la firma de documentos
+    """
+    try:
+      from odoo_client import OdooClient
+
+      logger.info("Iniciando proceso de firma del lote...")
+     
+      # Conectar con Odoo
+      client = OdooClient(
+          url=data['url'],
+          db=data.get('database', ''),
+          username=credentials['username'],
+          password=credentials['password']
+      )
+            
+      if not client.authenticate():
+        raise Exception("Error de autenticación con Odoo")
+      
+      logger.info("Descargando PDFs sin firmar...")
+
+      documents = client.download_unsigned_pdfs(int(data['batch']))
+            
+      if not documents:
+        raise Exception("No hay documentos para firmar")
+      
+    except Exception as e:
+      logger.error(f"Error procesando firma: {str(e)}")
 
 def main():
   """
