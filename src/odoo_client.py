@@ -9,6 +9,19 @@ from typing import Dict, List
 
 logger = logging.getLogger("maya_signer")
 
+import xmlrpc.client
+import socket
+
+class TimeoutTransport(xmlrpc.client.Transport):
+    def __init__(self, timeout=30):
+        super().__init__()
+        self.timeout = timeout
+
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = self.timeout
+        return conn
+
 class OdooConnectionError(Exception):
     """
     Error de conexión con Odoo
@@ -32,11 +45,13 @@ class OdooClient(object):
     self.username = username
     self.password = password
     self.uid = None
+
+    transport = TimeoutTransport(timeout=60)
     
     # Endpoints XML-RPC
     try:
-      self.common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common', allow_none=True)
-      self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object', allow_none=True)
+      self.common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common',  transport=transport, allow_none=True)
+      self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object', transport=transport, allow_none=True)
     except Exception as e:
       raise OdooConnectionError(f"No se pudo conectar a {self.url}: {str(e)}")
     
