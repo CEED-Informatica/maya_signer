@@ -170,8 +170,8 @@ class OdooClient(object):
     documents = self.execute(
       'maya_core.signature.batch_document',
       'read',
-      document_ids,
-      {'fields': ['id', 'pdf_content', 'filename', 'state']}
+      args = [document_ids],
+      kwargs = {'fields': ['id', 'filename', 'state', 'pdf_content']}
     )
         
     # Decodifico los PDFs
