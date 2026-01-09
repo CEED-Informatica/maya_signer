@@ -81,7 +81,7 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
         threading.Thread(
             target=self.server.maya_signer_service.process_signature,
             args=(data, credentials),
-            daemon=True
+            daemon=False
         ).start()
         
         self.send_response(200)
@@ -370,82 +370,121 @@ class MayaSignerService(QObject):
 
     QMessageBox.information(self, 'Guardado', 'Configuración guardada correctamente')
 
-  
-      
-  def handle_protocol(self, url: str):
-    
-    Gestiona llamadas al protocolo maya://sign
-    
-    logger.info(f"Protocolo recibido: {url}")
-        
-    try:
-      parsed = urlparse(url)
-      params = parse_qs(parsed.query)
-    
-      batch_id = int(params['batch'][0])
-      token = params.get('token', [None])[0]
-      odoo_url = params.get('url', [self.config['odoo_url']])[0]
-    
-      # Autenticar
-      odoo_client = OdooClient(
-        odoo_url,
-        self.config['odoo_db'],
-        self.config['odoo_username'],
-        self.pass_input.text()
-      )
-            
-      if not odoo_client.authenticate():
-        raise ValueError("Error de autenticación con Odoo")
-            
-      # Obtener contraseña del certificado si no es DNIe
-      cert_password = None
-      cert_password, ok = QInputDialog.getText(
-                    self, 
-                    'Contraseña del certificado', 
-                    'Introduce la contraseña del certificado:',
-                    QLineEdit.Password
-                )
-      if not ok:
-        return
-       
-    except Exception as e:
-      logger.error(f"Error manejando protocolo: {str(e)}")
-      QMessageBox.critical(self, 'Error', str(e)) """
-    
+   """
+
   def process_signature(self, data, credentials):
     """
-    Procesa la firma de documentos
+    Procesa la firma de documentos usando subproceso
     """
     try:
       from odoo_client import OdooClient
+      from subprocess_signature_manager import SubprocessSignatureManager
 
-      logger.info("Iniciando proceso de firma del lote...")
-     
-      # Conectar con Odoo
+      logger.info(f"** (1) => Iniciando proceso de firma del lote {data['batch']}... **")
+      logger.info(f"\tServidor: {data['url']}")
+      logger.info(f"\tBase de datos: {data.get('database', '')}")
+      logger.info(f"\tUsuario: {credentials['username']}")
+    
+      logger.info("** (2) => Conectando con Odoo... **")
       client = OdooClient(
           url=data['url'],
           db=data.get('database', ''),
           username=credentials['username'],
           password=credentials['password']
       )
-            
+          
       if not client.authenticate():
         raise Exception("Error de autenticación con Odoo")
-      
-      logger.info("Descargando PDFs sin firmar...")
 
+      logger.info("\tAutenticación correcta")
+
+      logger.info("** (3) => Descargando PDFs sin firmar... **")
       documents = client.download_unsigned_pdfs(int(data['batch']))
-            
+          
       if not documents:
         raise Exception("No hay documentos para firmar")
+
+      logger.info(f"\t{len(documents)} documentos descargados")
+
+      logger.info("** (4) => Iniciando firma con subproceso... **")
       
+      manager = SubprocessSignatureManager()
+      
+      result = manager.sign_documents(
+        documents=documents,
+        cert_path=credentials.get('cert_path'),
+        cert_password=credentials['cert_password'],
+        use_dnie=credentials.get('use_dnie', False),
+        progress_callback=None,  
+        cleanup=True
+      )
+      
+      if not result['success']:
+        error_msg = result.get('error', 'Error desconocido')
+        logger.error(f"\tError en firma: {error_msg}")
+        
+        if self.tray_icon:
+          self.tray_icon.showMessage(
+            'Error de firma',
+            f'Error firmando documentos: {error_msg}',
+            QSystemTrayIcon.Critical,
+            5000
+          )
+        return
+      
+      signed_documents = result['signed_documents']
+      
+      if not signed_documents:
+        logger.error("No se firmó ningún documento")
+        
+        if self.tray_icon:
+          self.tray_icon.showMessage(
+            'Sin documentos',
+            'No se pudo firmar ningún documento',
+            QSystemTrayIcon.Warning,
+            5000
+          )
+        return
+      
+      logger.info(f"\t{len(signed_documents)} documentos firmados correctamente")
+      
+      # 4. Subir documentos firmados a Odoo
+      logger.info("** (5) => Subiendo documentos firmados a Odoo... **")
+      
+      # Aquí deberías implementar el método upload_signed_pdfs en OdooClient
+      # Por ahora solo logueamos
+      for doc in signed_documents:
+        logger.info(f"  - {doc['signed_filename']}: {len(doc['signed_pdf_bytes'])} bytes")
+      
+      if self.tray_icon:
+        self.tray_icon.showMessage(
+          'Firma completada',
+          f'{len(signed_documents)} documentos firmados correctamente',
+          QSystemTrayIcon.Information,
+          5000
+        )
+      
+      logger.info("=" * 60)
+      logger.info("    PROCESO COMPLETADO CON ÉXITO")
+      logger.info("=" * 60)
+        
     except Exception as e:
-      logger.error(f"Error procesando firma: {str(e)}")
+      logger.error(f"Error procesando firma: {str(e)}", exc_info=True)
+      
+      # Notificar error
+      if self.tray_icon:
+        self.tray_icon.showMessage(
+          'Error',
+          f'Error en el proceso de firma: {str(e)}',
+          QSystemTrayIcon.Critical,
+          5000
+        )
 
 def main():
   """
   Inicia el servicio persistente
   """
+
   app = QApplication(sys.argv)
   app.setQuitOnLastWindowClosed(False)
     

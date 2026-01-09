@@ -2,9 +2,9 @@
 
 import logging
 
+logger = logging.getLogger("signer_worker")
+
 # pyHanko
-from pyhanko.sign import pkcs11
-from pyhanko.sign import signers
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign.fields import SigFieldSpec
 
@@ -16,12 +16,18 @@ import os
 
 from typing import Optional
 
-logging.basicConfig(
-        level=logging.DEBUG, 
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    )
 
-logger = logging.getLogger(__name__)
+class PKCS11Error(Exception):
+  """
+  Error específico de PKCS#11
+  """
+  pass
+
+class CertificateError(Exception):
+  """
+  Error relacionado con certificados
+  """
+  pass
 
 class PyHankoSigner:
   """
@@ -50,7 +56,8 @@ class PyHankoSigner:
     Configura firma con DNIe usando PKCS#11
     """
     try:
-          
+      from pyhanko.sign import pkcs11
+
       # Busco el módulo PKCS#11
       pkcs11_lib = os.environ.get('PKCS11_MODULE')
           
@@ -117,6 +124,8 @@ class PyHankoSigner:
     Carga certificado .p12/.pfx
     """
     try:
+      from pyhanko.sign import signers
+
       with open(self.cert_path, 'rb') as f:
         cert_data = f.read()
       
@@ -157,6 +166,8 @@ class PyHankoSigner:
         PDF firmado en bytes
     """
     try:
+      from pyhanko.sign import signers
+      
       if self.signer is None:
           raise ValueError("No hay firmante configurado")
       

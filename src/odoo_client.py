@@ -72,7 +72,7 @@ class OdooClient(object):
             f"Credenciales inválidas para {self.username} en {self.db}"
         )
             
-      logger.info(f"Autenticación correcta (UID: {self.uid})")
+      logger.info(f"\tAutenticación correcta (UID: {self.uid})")
       return True
             
     except xmlrpc.client.Fault as e:
@@ -122,7 +122,7 @@ class OdooClient(object):
             kwargs = {'fields': ['name', 'document_ids', 'state']}
       )
       if batch:
-        logger.info(f"Lote {batch_id}: {batch[0]['name']} - Estado: {batch[0]['state']}")
+        logger.info(f"\tLote {batch_id}: {batch[0]['name']} - Estado: {batch[0]['state']}")
         return batch[0]
             
       return None
@@ -153,7 +153,7 @@ class OdooClient(object):
           ...
       ]
     """
-    logger.info(f"Descargando PDFs del lote {batch_id}...")
+    logger.info(f"\tDescargando PDFs del lote {batch_id}...")
 
     # obtebno info del lote
     batch = self.get_batch_info(batch_id)
@@ -192,7 +192,7 @@ class OdooClient(object):
       except Exception as e:
         logger.error(f"\tError decodificando PDF {doc['id']}: {e}")
         
-    logger.info(f"✓ Descargados {len(unsigned_docs)} PDFs del lote {batch_id}")
+    logger.info(f"\tDescargados {len(unsigned_docs)} PDFs del lote {batch_id}")
 
     return unsigned_docs
 
