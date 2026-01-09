@@ -10,13 +10,14 @@
       "type": "debugpy",
       "request": "launch",
       "program": "src/main.py",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
     },
     {
       "name": "Python Debugger: con url",
       "type": "debugpy",
       "request": "launch",
       "program": "src/main.py",
+      "subProcess": false,
       "args": ["maya://sign?batch=113&token=p6FTJFJ3X_ovILXl8zIF0JAYf4v9K2c7pj--9dfbI44&url=http://localhost:8069&db=CEED_TEST_2526"],
       "console": "integratedTerminal"
     }
