@@ -94,8 +94,8 @@ class SubprocessSignatureManager:
       'cert_password': cert_password,
       'use_dnie': use_dnie,
       'documents': [
-        # por cada documento una tupla con su id y el nombre del fichero
-        { 'document_id': doc['id'], 'filename': doc.get('filename', f"doc_{doc['id']}.pdf") } for doc in documents
+        # por cada documento una tupla con su id, modelo y el nombre del fichero
+        { 'document_id': doc['id'], 'model': doc.get('model', ''), 'filename': doc.get('filename', f"doc_{doc['id']}.pdf") } for doc in documents
         ]
     }
     
@@ -259,6 +259,7 @@ class SubprocessSignatureManager:
         
         signed_documents.append({
           'document_id': result['document_id'],
+          'model': result.get('model', ''),
           'signed_pdf_bytes': signed_pdf_bytes,
           'signed_filename': result['original_filename'].replace('.pdf', '_firmado.pdf')
         })

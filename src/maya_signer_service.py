@@ -448,14 +448,21 @@ class MayaSignerService(QObject):
       
       logger.info(f"\t{len(signed_documents)} documentos firmados correctamente")
       
-      # 4. Subir documentos firmados a Odoo
       logger.info("** (5) => Subiendo documentos firmados a Odoo... **")
-      
-      # Aquí deberías implementar el método upload_signed_pdfs en OdooClient
-      # Por ahora solo logueamos
-      for doc in signed_documents:
-        logger.info(f"  - {doc['signed_filename']}: {len(doc['signed_pdf_bytes'])} bytes")
-      
+
+      upload_correct = client.upload_signed_pdfs(int(data['batch']),signed_documents)
+
+      if not upload_correct:
+        logger.error("Error al subir documentos firmados a Odoo")
+        if self.tray_icon:
+          self.tray_icon.showMessage(
+            'Error de subida',
+            'Error al subir documentos firmados a Odoo',
+            QSystemTrayIcon.Critical,
+            5000
+          )
+        return
+
       if self.tray_icon:
         self.tray_icon.showMessage(
           'Firma completada',

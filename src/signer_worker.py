@@ -195,6 +195,7 @@ class SignatureWorker:
         
           results.append({
             'document_id': doc_id,
+            'model': doc.get('model', ''),
             'signed_filename': signed_filename,
             'original_filename': filename,
             'success': True

@@ -10,7 +10,7 @@ from typing import Dict, List
 logger = logging.getLogger("maya_signer")
 
 import xmlrpc.client
-import socket
+from datetime import datetime
 
 class TimeoutTransport(xmlrpc.client.Transport):
     def __init__(self, timeout=30):
@@ -171,7 +171,7 @@ class OdooClient(object):
       'maya_core.signature.batch_document',
       'read',
       args = [document_ids],
-      kwargs = {'fields': ['id', 'filename', 'state', 'pdf_content']}
+      kwargs = {'fields': ['id', 'filename', 'state','res_model', 'pdf_content']}
     )
         
     # Decodifico los PDFs
@@ -195,6 +195,138 @@ class OdooClient(object):
     logger.info(f"\tDescargados {len(unsigned_docs)} PDFs del lote {batch_id}")
 
     return unsigned_docs
+  
+  def upload_signed_pdf(self, document_id: int, signed_pdf_bytes: bytes, 
+                          signed_filename: str) -> bool:
+    """
+    Sube un PDF firmado individual
+    
+    Args:
+      document_id: ID del documento en el lote
+      signed_pdf_bytes: Bytes del PDF firmado
+      signed_filename: Nombre del archivo firmado
+        
+    Returns:
+      bool: True si se subió correctamente
+    """
+    try:
+      # Lo paso a base64
+      signed_content = base64.b64encode(signed_pdf_bytes).decode('utf-8')
+      
+      # Actualizo documento en el lote
+      self.execute(
+        'maya_core.signature.batch_document',
+        'write',
+        args=[[document_id], {  # ← Lista con [ids, valores]
+                'signed_pdf': signed_content,
+                'signed_pdf_filename': signed_filename,
+                'state': 'signed',
+                'sign_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }],
+        kwargs={}
+      )
+        
+      logger.debug(f"\tPDF firmado subido: {signed_filename}")
+      return True
+        
+    except Exception as e:
+      logger.error(f"\tError subiendo PDF firmado {document_id}: {e}")
+      return False
+    
+  def upload_signed_pdfs(self, batch_id: int, signed_documents: List[Dict]) -> bool:
+    """
+    Sube múltiples PDFs firmados a Odoo
+    
+    Args:
+      batch_id: ID del lote
+      signed_documents: Lista de diccionarios:
+        [
+            {
+                'document_id': int,
+                'signed_pdf_bytes': bytes,
+                'signed_filename': str,
+                'model': str (opcional),
+                'record_id': int (opcional)
+            },
+            ...
+        ]
+            
+    Returns:
+      bool: True si todos se subieron correctamente
+    """
+    logger.info(f"Subiendo {len(signed_documents)} PDFs firmados al lote {batch_id}...")
+    
+    success_count = 0
+    failed_count = 0
+    
+    for doc in signed_documents:
+      try:
+        document_id = doc['document_id']
+        signed_pdf_bytes = doc['signed_pdf_bytes']
+        signed_filename = doc.get('signed_filename', f'signed_{document_id}.pdf')
+        
+        # Subir PDF firmado
+        if self.upload_signed_pdf(document_id, signed_pdf_bytes, signed_filename):
+          success_count += 1
+          
+          # Si se proporciona modelo y record_id, actualizar el registro original
+          if doc.get('model') and doc.get('document_id'):
+            try:
+              self.execute(
+                doc['model'],
+                'write',
+                # los datos se añaden al registro principal a traves de SignatureMixin
+                args=[[doc['document_id']], { 
+                  'signed_pdf': base64.b64encode(signed_pdf_bytes).decode(),
+                  'signed_pdf_filename': signed_filename,
+                  'signature_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  'signature_user_id': self.uid
+                }],   
+                kwargs={},
+              )
+            except Exception as e:
+              logger.warning(f"\tNo se pudo actualizar registro original: {str(e)}")
+        else:
+            failed_count += 1
+              
+      except Exception as e:
+        logger.error(f"\tError procesando documento: {str(e)}")
+        failed_count += 1
+    
+    # Actualizo el estado del lote si todos se firmaron
+    if failed_count == 0:
+      self.update_batch_state(batch_id, 'done')
+    else:
+      self.update_batch_state(batch_id, 'error')
+    
+    logger.info(f"\tSubidos {success_count}/{len(signed_documents)} PDFs")
+    
+    return failed_count == 0
+    
+  def update_batch_state(self, batch_id: int, state: str) -> bool:
+    """
+    Actualiza el estado del lote
+    
+    Args:
+        batch_id: ID del lote
+        state: Nuevo estado ('draft', 'done', 'error')
+        
+    Returns:
+        bool: True si se actualizó correctamente
+    """
+    try:
+      self.execute(
+          'maya_core.signature.batch',
+          'write',
+          args=[[batch_id], {'state': state}] ,
+          kwargs={}
+      )
+      logger.info(f"\tLote {batch_id} -> {state}")
+      return True
+    except Exception as e:
+      logger.error(f"Error actualizando estado del lote: {e}")
+      return False
+  
 
   def test_connection(self) -> Dict:
     """
