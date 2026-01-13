@@ -147,8 +147,8 @@ class OdooClient(object):
               'pdf_content': str (base64),
               'pdf_bytes': bytes,
               'pdf_filename': str,
-              'model': str,
-              'record_id': int
+              'res_model': str,
+              'res_id': int
           },
           ...
       ]
@@ -171,7 +171,7 @@ class OdooClient(object):
       'maya_core.signature.batch_document',
       'read',
       args = [document_ids],
-      kwargs = {'fields': ['id', 'filename', 'state','res_model', 'pdf_content']}
+      kwargs = {'fields': ['id', 'filename', 'state','res_model', 'res_id', 'pdf_content']}
     )
         
     # Decodifico los PDFs
@@ -245,8 +245,8 @@ class OdooClient(object):
                 'document_id': int,
                 'signed_pdf_bytes': bytes,
                 'signed_filename': str,
-                'model': str (opcional),
-                'record_id': int (opcional)
+                'res_model': str (opcional),
+                'res_id': int (opcional)
             },
             ...
         ]
@@ -254,7 +254,7 @@ class OdooClient(object):
     Returns:
       bool: True si todos se subieron correctamente
     """
-    logger.info(f"Subiendo {len(signed_documents)} PDFs firmados al lote {batch_id}...")
+    logger.info(f"\tSubiendo {len(signed_documents)} PDFs firmados al lote {batch_id}...")
     
     success_count = 0
     failed_count = 0
@@ -268,15 +268,15 @@ class OdooClient(object):
         # Subir PDF firmado
         if self.upload_signed_pdf(document_id, signed_pdf_bytes, signed_filename):
           success_count += 1
-          
-          # Si se proporciona modelo y record_id, actualizar el registro original
-          if doc.get('model') and doc.get('document_id'):
+          logger.info(f"\tDocumento vinculado {doc.get('res_id')} del modelo {doc.get('res_model')}")
+          # Si se proporciona modelo y res_id, actualizar el registro original
+          if doc.get('res_model') and doc.get('res_id'):
             try:
               self.execute(
-                doc['model'],
+                doc['res_model'],
                 'write',
                 # los datos se añaden al registro principal a traves de SignatureMixin
-                args=[[doc['document_id']], { 
+                args=[[doc['res_id']], { 
                   'signed_pdf': base64.b64encode(signed_pdf_bytes).decode(),
                   'signed_pdf_filename': signed_filename,
                   'signature_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

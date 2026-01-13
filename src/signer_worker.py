@@ -195,13 +195,14 @@ class SignatureWorker:
         
           results.append({
             'document_id': doc_id,
-            'model': doc.get('model', ''),
+            'res_model': doc.get('res_model', ''),
+            'res_id': doc.get('res_id', ''),
             'signed_filename': signed_filename,
             'original_filename': filename,
             'success': True
           })
         
-          self.logger.info(f"✓ Firmado: {filename}")
+          self.logger.info(f"Firmado: {filename}")
             
         except Exception as e:
           self.logger.error(f"Error firmando {filename}: {e}")

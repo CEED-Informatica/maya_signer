@@ -94,8 +94,9 @@ class SubprocessSignatureManager:
       'cert_password': cert_password,
       'use_dnie': use_dnie,
       'documents': [
-        # por cada documento una tupla con su id, modelo y el nombre del fichero
-        { 'document_id': doc['id'], 'model': doc.get('model', ''), 'filename': doc.get('filename', f"doc_{doc['id']}.pdf") } for doc in documents
+        # por cada documento una tupla con su id, res_modelo, id del modelo vinculado (res_model) y el nombre del fichero
+        { 'document_id': doc['id'], 'res_model': doc.get('res_model', ''), 
+          'res_id': doc.get('res_id', ''), 'filename': doc.get('filename', f"doc_{doc['id']}.pdf") } for doc in documents
         ]
     }
     
@@ -242,7 +243,7 @@ class SubprocessSignatureManager:
       for result in results:
         if not result.get('success'):
           logger.warning(
-            f"\tDocumento {result.get('document_id')} ha fallado: "
+            f"\tDocumento en lote {result.get('document_id')} ha fallado: "
             f"{result.get('error')}"
           )
           continue
@@ -259,7 +260,8 @@ class SubprocessSignatureManager:
         
         signed_documents.append({
           'document_id': result['document_id'],
-          'model': result.get('model', ''),
+          'res_model': result.get('res_model', ''),
+          'res_id': result.get('res_id', ''), # documento vinculado
           'signed_pdf_bytes': signed_pdf_bytes,
           'signed_filename': result['original_filename'].replace('.pdf', '_firmado.pdf')
         })

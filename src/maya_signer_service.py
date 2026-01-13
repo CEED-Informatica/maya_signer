@@ -450,7 +450,7 @@ class MayaSignerService(QObject):
       
       logger.info("** (5) => Subiendo documentos firmados a Odoo... **")
 
-      upload_correct = client.upload_signed_pdfs(int(data['batch']),signed_documents)
+      upload_correct = client.upload_signed_pdfs(int(data['batch']), signed_documents)
 
       if not upload_correct:
         logger.error("Error al subir documentos firmados a Odoo")
