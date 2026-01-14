@@ -5,7 +5,7 @@ import base64
 
 import xmlrpc.client
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("maya_signer")
 
@@ -13,38 +13,54 @@ import xmlrpc.client
 from datetime import datetime
 
 class TimeoutTransport(xmlrpc.client.Transport):
-    def __init__(self, timeout=30):
-        super().__init__()
-        self.timeout = timeout
+  def __init__(self, timeout=30):
+    super().__init__()
+    self.timeout = timeout
 
-    def make_connection(self, host):
-        conn = super().make_connection(host)
-        conn.timeout = self.timeout
-        return conn
+  def make_connection(self, host):
+    conn = super().make_connection(host)
+    conn.timeout = self.timeout
+    return conn
 
 class OdooConnectionError(Exception):
-    """
-    Error de conexión con Odoo
-    """
-    pass
+  """
+  Error de conexión con Odoo
+  """
+  pass
 
 class OdooAuthenticationError(Exception):
-    """
-    Error de autenticación
-    """
-    pass
+  """
+  Error de autenticación
+  """
+  pass
+
+class OdooTokenError(Exception):
+  """
+  Error de validación de token
+  """
+  pass
 
 class OdooClient(object):
   """
   Cliente para comunicación con Maya (Odoo) vía XML-RPC
   """
     
-  def __init__(self, url: str, db: str, username: str, password: str):
+  def __init__(self, url: str, db: str, username: str, 
+               password: str, batch_token: Optional[str] = None):
+    """
+      Args:
+        url: URL base de Odoo
+        db: Nombre de la base de datos
+        username: Usuario de Odoo
+        password: Contraseña de Odoo
+        batch_token: Token de sesión del batch
+    """
     self.url = url.rstrip('/')
     self.db = db
     self.username = username
     self.password = password
     self.uid = None
+    self.batch_token = batch_token
 
     transport = TimeoutTransport(timeout=60)
     
@@ -107,19 +123,65 @@ class OdooClient(object):
       logger.error(f"Error XML-RPC en {model}.{method}: {e.faultString}")
       raise
     except Exception as e:
-      logger.error(f"Error ejecutando {model}.{method}: {e}")
+      logger.error(f"Error ejecutando {model}.{method}: {str(e)}")
       raise
 
-  def get_batch_info(self, batch_id: int) -> Dict | None:
+  def validate_batch_token(self, batch_id: int) -> Dict:
+    """
+    Valida el token de sesión del batch
+    
+    Args:
+        batch_id: ID del lote
+        
+    Returns:
+        Dict con información de validación
+        
+    Raises:
+        OdooTokenError: Si el token es inválido o expiró
+    """
+    if not self.batch_token:
+      raise OdooTokenError("No hay token de sesión configurado")
+    
+    try:
+      result = self.execute(
+          'maya_core.signature.batch',
+          'validate_session_token',
+          args=[batch_id, self.batch_token]
+      )
+      
+      # si el campo valida es False
+      if not result.get('valid'):
+        error = result.get('error', 'Token inválido')
+        raise OdooTokenError(f"\tValidación falló: {error}")
+    
+      logger.info(f"\tToken validado para lote {batch_id}")
+      return result
+        
+    except OdooTokenError:
+      raise
+    except Exception as e:
+      raise OdooTokenError(f"Error validando token: {str(e)}")
+
+  def get_batch_info(self, batch_id: int, validate_token: bool = False) -> Dict | None:
     """
     Obtiene información del lote de firma
+
+    Args:
+      batch_id: ID del lote
+      validate_token: Si True, valida el token antes de obtener info
+            
+    Returns:
+      Dict con información del batch
     """
+    if validate_token and self.batch_token:
+      self.validate_batch_token(batch_id)
+
     try:
       batch = self.execute(
-            'maya_core.signature.batch',
-            'read',
-            args = [[batch_id]],
-            kwargs = {'fields': ['name', 'document_ids', 'state']}
+        'maya_core.signature.batch',
+        'read',
+        args = [[batch_id]],
+        kwargs = {'fields': ['name', 'document_ids', 'state']}
       )
       if batch:
         logger.info(f"\tLote {batch_id}: {batch[0]['name']} - Estado: {batch[0]['state']}")
@@ -155,8 +217,10 @@ class OdooClient(object):
     """
     logger.info(f"\tDescargando PDFs del lote {batch_id}...")
 
-    # obtebno info del lote
-    batch = self.get_batch_info(batch_id)
+    self.validate_batch_token(batch_id)
+
+    # obtengo info del lote
+    batch = self.get_batch_info(batch_id, validate_token = False)
     if not batch:
       raise ValueError(f"Lote {batch_id} no encontrado")
     
@@ -255,6 +319,8 @@ class OdooClient(object):
       bool: True si todos se subieron correctamente
     """
     logger.info(f"\tSubiendo {len(signed_documents)} PDFs firmados al lote {batch_id}...")
+
+    self.validate_batch_token(batch_id)
     
     success_count = 0
     failed_count = 0
@@ -294,10 +360,12 @@ class OdooClient(object):
         failed_count += 1
     
     # Actualizo el estado del lote si todos se firmaron
-    if failed_count == 0:
+    """ if failed_count == 0:
       self.update_batch_state(batch_id, 'done')
     else:
-      self.update_batch_state(batch_id, 'error')
+      self.update_batch_state(batch_id, 'error') """
+    
+    self.finalize_batch(batch_id, success_count, failed_count)
     
     logger.info(f"\tSubidos {success_count}/{len(signed_documents)} PDFs")
     
@@ -318,7 +386,7 @@ class OdooClient(object):
       self.execute(
           'maya_core.signature.batch',
           'write',
-          args=[[batch_id], {'state': state}] ,
+          args=[[batch_id], {'state': state, 'sign_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ,
           kwargs={}
       )
       logger.info(f"\tLote {batch_id} -> {state}")
@@ -327,6 +395,43 @@ class OdooClient(object):
       logger.error(f"Error actualizando estado del lote: {e}")
       return False
   
+  def finalize_batch(self, batch_id: int, success_count: int, 
+                      failed_count: int) -> Dict:
+    """
+    Finaliza el lote usando el método oficial con validación de token
+    
+    Args:
+        batch_id: ID del lote
+        success_count: Documentos firmados correctamente
+        failed_count: Documentos con error
+        
+    Returns:
+        Dict con resultado de finalización
+    """
+    if not self.batch_token:
+      # Fallback al método antiguo si no hay token
+      logger.warning("No hay token, usando método de finalización sin validación")
+      state = 'done' if failed_count == 0 else 'error'
+      return self.update_batch_state(batch_id, state)
+    
+    try:
+      result = self.execute(
+          'maya_core.signature.batch',
+          'finalize_batch',
+          args=[batch_id, self.batch_token, success_count, failed_count]
+      )
+        
+      logger.info(
+          f"\tLote {batch_id} finalizado: {success_count} firmados, "
+          f"{failed_count} errores"
+      )
+      return result
+        
+    except Exception as e:
+      logger.error(f"Error finalizando lote: {e}")
+      # Fallback
+      state = 'done' if failed_count == 0 else 'error'
+      return self.update_batch_state(batch_id, state)
 
   def test_connection(self) -> Dict:
     """

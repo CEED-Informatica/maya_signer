@@ -49,6 +49,7 @@ def parse_protocol_url(url):
     'batch': params.get('batch', [None])[0],
     'url': params.get('url', [None])[0],
     'database': params.get('db', [''])[0],
+    'token': params.get('token', [None])[0]
   }
 
 def handle_protocol_call(url):
@@ -61,6 +62,10 @@ def handle_protocol_call(url):
     
   if not params['batch'] or not params['url']:
     logger.error("Faltan parámetros requeridos (batch, url)")
+    return 1
+  
+  if not params['token']:
+    logger.error("Falta el token de sesión")
     return 1
     
   # compruebo si el servicio está corriendo

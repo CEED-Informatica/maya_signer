@@ -377,20 +377,22 @@ class MayaSignerService(QObject):
     Procesa la firma de documentos usando subproceso
     """
     try:
-      from odoo_client import OdooClient
+      from odoo_client import OdooClient, OdooTokenError
       from subprocess_signature_manager import SubprocessSignatureManager
 
       logger.info(f"** (1) => Iniciando proceso de firma del lote {data['batch']}... **")
       logger.info(f"\tServidor: {data['url']}")
       logger.info(f"\tBase de datos: {data.get('database', '')}")
       logger.info(f"\tUsuario: {credentials['username']}")
+      logger.info(f"  Token: {data.get('token', 'N/A')[:10]}...")
     
       logger.info("** (2) => Conectando con Odoo... **")
       client = OdooClient(
           url=data['url'],
           db=data.get('database', ''),
           username=credentials['username'],
-          password=credentials['password']
+          password=credentials['password'],
+          batch_token=data.get('token')
       )
           
       if not client.authenticate():
@@ -398,7 +400,23 @@ class MayaSignerService(QObject):
 
       logger.info("\tAutenticación correcta")
 
-      logger.info("** (3) => Descargando PDFs sin firmar... **")
+      # 2. Validar token del batch
+      try:
+        logger.info("** (3) Validando token de sesión... **")
+        validation = client.validate_batch_token(int(data['batch']))
+        logger.info(f"\tToken validado: {validation.get('batch_name')}")
+      except OdooTokenError as e:
+        logger.error(f"\tToken inválido o expirado: {e}")
+        if self.tray_icon:
+            self.tray_icon.showMessage(
+                'Error de autenticación',
+                'El token de firma ha expirado. Inicia el proceso nuevamente desde Maya.',
+                QSystemTrayIcon.Critical,
+                5000
+            )
+        return
+
+      logger.info("** (4) => Descargando PDFs sin firmar... **")
       documents = client.download_unsigned_pdfs(int(data['batch']))
           
       if not documents:
@@ -406,7 +424,7 @@ class MayaSignerService(QObject):
 
       logger.info(f"\t{len(documents)} documentos descargados")
 
-      logger.info("** (4) => Iniciando firma con subproceso... **")
+      logger.info("** (5) => Iniciando firma con subproceso... **")
       
       manager = SubprocessSignatureManager()
       
@@ -448,28 +466,44 @@ class MayaSignerService(QObject):
       
       logger.info(f"\t{len(signed_documents)} documentos firmados correctamente")
       
-      logger.info("** (5) => Subiendo documentos firmados a Odoo... **")
+      logger.info("** (6) => Subiendo documentos firmados a Odoo... **")
 
-      upload_correct = client.upload_signed_pdfs(int(data['batch']), signed_documents)
+      try:
+        upload_correct = client.upload_signed_pdfs(int(data['batch']), signed_documents)
+        
+        if upload_correct:
+          logger.info("\tTodos los documentos subidos correctamente")
 
-      if not upload_correct:
-        logger.error("Error al subir documentos firmados a Odoo")
-        if self.tray_icon:
-          self.tray_icon.showMessage(
-            'Error de subida',
-            'Error al subir documentos firmados a Odoo',
-            QSystemTrayIcon.Critical,
+          if self.tray_icon:
+            self.tray_icon.showMessage(
+            'Firma completada',
+            f'{len(signed_documents)} documentos firmados correctamente',
+            QSystemTrayIcon.Information,
             5000
           )
+            
+        else:
+          logger.error("\tError al subir documentos firmados a Odoo")
+        
+          if self.tray_icon:
+            self.tray_icon.showMessage(
+              'Error de subida',
+              'Error al subir documentos firmados a Odoo',
+              QSystemTrayIcon.Critical,
+              5000
+            )
+          return
+              
+      except OdooTokenError as e:
+        logger.error(f"\tToken expiró durante la subida: {str(e)}")
+        if self.tray_icon:
+            self.tray_icon.showMessage(
+                'Error de sesión',
+                'El token expiró durante la subida. Algunos documentos pueden no haberse guardado.',
+                QSystemTrayIcon.Critical,
+                5000
+            )
         return
-
-      if self.tray_icon:
-        self.tray_icon.showMessage(
-          'Firma completada',
-          f'{len(signed_documents)} documentos firmados correctamente',
-          QSystemTrayIcon.Information,
-          5000
-        )
       
       logger.info("=" * 60)
       logger.info("    PROCESO COMPLETADO CON ÉXITO")
