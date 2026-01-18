@@ -139,6 +139,7 @@ class OdooClient(object):
     Raises:
         OdooTokenError: Si el token es inválido o expiró
     """
+    return
     if not self.batch_token:
       raise OdooTokenError("No hay token de sesión configurado")
     

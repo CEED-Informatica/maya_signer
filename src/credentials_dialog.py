@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from pathlib import Path
+import json
+from typing import Dict
 
 logger = logging.getLogger("maya_signer")
 
@@ -28,7 +30,21 @@ class CredentialsDialog(QDialog):
     self.credentials = None
     self.url = odoo_url
     self.database = database
+
+    # configuracion
+    self.config_file = Path.home() / '.maya_signer' / 'config.json'
+    self.config_file.parent.mkdir(exist_ok=True)
+
+    self.config = self.load_config()
+
+    self.init_ui()
+
+  def init_ui(self):
+    """
+    Inicializa interfaz gráfica
+    """
         
+    # componentes de la interfaz    
     self.setWindowTitle('Maya Signer - Credenciales')
     self.setModal(True)
     
@@ -55,11 +71,11 @@ class CredentialsDialog(QDialog):
     title_label.setStyleSheet("font-size: 14px;")
     info_layout.addWidget(title_label)
     
-    url_label = QLabel(f"URL: {odoo_url}")
+    url_label = QLabel(f"URL: {self.url}")
     url_label.setStyleSheet("color: #999;")
     info_layout.addWidget(url_label)
-  
-    db_label = QLabel(f"Base de datos: {database}")
+
+    db_label = QLabel(f"Base de datos: {self.database}")
     db_label.setStyleSheet("color: #999;")
     info_layout.addWidget(db_label)
         
@@ -69,7 +85,7 @@ class CredentialsDialog(QDialog):
     layout1 = QVBoxLayout()
     layout1.setSpacing(5)
     layout1.addWidget(QLabel("Usuario de Maya:"))
-    self.username_input = QLineEdit()
+    self.username_input = QLineEdit(self.config.get('odoo_username', ''))
     self.username_input.setPlaceholderText("tu@email.com")
     layout1.addWidget(self.username_input)
     left_layout.addLayout(layout1)
@@ -104,6 +120,7 @@ class CredentialsDialog(QDialog):
     
     ### Checkbox DNIe
     self.dnie_checkbox = QCheckBox('Usar DNIe')
+    self.dnie_checkbox.setChecked(self.config.get('use_dnie', False))
     self.dnie_checkbox.stateChanged.connect(self.on_dnie_changed)
     header_layout.addWidget(self.dnie_checkbox)
 
@@ -114,7 +131,7 @@ class CredentialsDialog(QDialog):
     layout3.setSpacing(5)
     layout3.addWidget(QLabel('Ruta certificado .p12 (solo si no usas DNIe):'))
     cert_layout = QHBoxLayout()
-    self.cert_input = QLineEdit()
+    self.cert_input = QLineEdit(self.config.get('cert_path', ''))
     self.cert_input.setEnabled(not self.dnie_checkbox.isChecked())
     cert_layout.addWidget(self.cert_input)
     layout3.addLayout(cert_layout)
@@ -156,12 +173,16 @@ class CredentialsDialog(QDialog):
     self.test_btn = QPushButton("Probar Conexión")
     self.test_btn.clicked.connect(self.test_connection)
     button_layout.addWidget(self.test_btn)
-    
+
+    self.clean_cfg = QPushButton("Borrar configuración")
+    self.clean_cfg.clicked.connect(self.clear_config)
+    button_layout.addWidget(self.clean_cfg)
+
     cancel_btn = QPushButton("Cancelar")
     cancel_btn.clicked.connect(self.reject)
     button_layout.addWidget(cancel_btn)
       
-    accept_btn = QPushButton("Conectar")
+    accept_btn = QPushButton("Firmar")
     accept_btn.setDefault(True)
     accept_btn.clicked.connect(self.accept_credentials)
     accept_btn.setStyleSheet("""
@@ -183,10 +204,47 @@ class CredentialsDialog(QDialog):
     main_layout.addWidget(note_label)
     main_layout.addLayout(button_layout) 
         
-    self.setLayout(main_layout)
-        
-    self.username_input.setFocus()
+    self.setLayout(main_layout) 
+
+    if not self.username_input.text():
+      self.username_input.setFocus()
+    else:
+      self.password_input.setFocus()
+
+  def load_config(self) -> Dict:
+    """
+    Carga configuración
+    """
     
+    if self.config_file.exists():
+      with open(self.config_file, 'r') as f:
+        return json.load(f)
+      
+    return {
+      'odoo_username': '',
+      'cert_path': '',
+      'use_dnie': False
+    }
+
+  def save_config(self, clean: bool = False):
+    """
+    Guarda configuración
+    """
+    self.config = {
+      'odoo_username': self.username_input.text() if not clean else '',
+      'cert_path': self.cert_input.text() if not clean else '',
+      'use_dnie': self.dnie_checkbox.isChecked() if not clean else False
+    }
+   
+    with open(self.config_file, 'w') as f:
+      json.dump(self.config, f, indent=2)
+
+  def clear_config(self):
+    """
+    Limpia la configuración
+    """
+    self.save_config(clean=True)
+
   def accept_credentials(self):
     """
     Valida y acepta las credenciales
@@ -213,6 +271,8 @@ class CredentialsDialog(QDialog):
       'cert_path': cert_path,
       'use_dnie': use_dnie
     }
+
+    self.save_config()
     
     self.accept()
 

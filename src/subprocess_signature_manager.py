@@ -268,7 +268,7 @@ class SubprocessSignatureManager:
         
         logger.info(f"\tLeído PDF firmado: {result['original_filename']}")
         
-        return signed_documents
+      return signed_documents
         
     except Exception as e:
       logger.error(f"\tError leyendo resultados: {str(e)}")

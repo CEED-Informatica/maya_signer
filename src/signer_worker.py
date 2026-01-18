@@ -171,7 +171,6 @@ class SignatureWorker:
             message=f"Firmando {filename}..."
           )
             
-            
           if not pdf_path.exists():
             self.logger.error(f"Archivo no encontrado: {pdf_path}")
             failed_count += 1
@@ -215,38 +214,38 @@ class SignatureWorker:
             'error': str(e)
           })
         
-        try:
-          self.logger.info("Cerrando firmador...")
-          signer.close()
-          self.logger.info("Firmador cerrado")
-        except Exception as e:
-          self.logger.warning(f"Error cerrando firmador: {e}")
+      try:
+        self.logger.info("Cerrando firmador...")
+        signer.close()
+        self.logger.info("Firmador cerrado")
+      except Exception as e:
+        self.logger.warning(f"Error cerrando firmador: {e}")
         
-        self.logger.info("Guardando resultados...")
-        self.save_output(results)
-        
-        success_count = len([r for r in results if r.get('success')])
-        
-        self.logger.info("=" * 60)
-        self.logger.info(f"FIRMA COMPLETADA")
-        self.logger.info(f"  Éxitos: {success_count}/{len(documents)}")
-        self.logger.info(f"  Fallos: {failed_count}")
-        self.logger.info("=" * 60)
-        
-        if success_count > 0:
-          self.update_status(
-            'success',
-            progress=len(documents),
-            total=len(documents),
-            message=f"Firmados {success_count} de {len(documents)} documentos"
-          )
-          return 0
-        else:
-          self.update_status(
-            'error',
-            message="No se firmó ningún documento"
-          )
-          return 1
+      self.logger.info("Guardando resultados...")
+      self.save_output(results)
+      
+      success_count = len([r for r in results if r.get('success')])
+      
+      self.logger.info("=" * 60)
+      self.logger.info(f"FIRMA COMPLETADA")
+      self.logger.info(f"  Éxitos: {success_count}/{len(documents)}")
+      self.logger.info(f"  Fallos: {failed_count}")
+      self.logger.info("=" * 60)
+      
+      if success_count > 0:
+        self.update_status(
+          'success',
+          progress=len(documents),
+          total=len(documents),
+          message=f"Firmados {success_count} de {len(documents)} documentos"
+        )
+        return 0
+      else:
+        self.update_status(
+          'error',
+          message="No se firmó ningún documento"
+        )
+        return 1
             
     except Exception as e:
         self.logger.error(f"ERROR CRÍTICO: {e}")

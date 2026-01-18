@@ -315,7 +315,7 @@ class MayaSignerService(QObject):
         
     # Icono en tray
     self.init_tray()
-        
+
     # Iniciao el servidor
     if not self.start_server():
       QMessageBox.critical(
@@ -327,50 +327,6 @@ class MayaSignerService(QObject):
     
     # Ejecuto la aplicación Qt
     return self.app.exec()
- 
-    """ 
-    
-
-  def load_config(self) -> Dict:
-    
-    Carga configuración
-    
-    if self.config_file.exists():
-      with open(self.config_file, 'r') as f:
-        return json.load(f)
-      
-    return {
-      'odoo_url': '',
-      'odoo_db': '',
-      'odoo_username': '',
-      'cert_path': '',
-      'use_dnie': False
-    }
-  
-  def save_config(self):
-    
-    Guarda configuración
-    
-    with open(self.config_file, 'w') as f:
-      json.dump(self.config, f, indent=2)
- 
-  def save_settings(self):
-    
-    Guarda configuración
-    
-    self.config = {
-      'odoo_url': self.url_input.text(),
-      'odoo_db': self.db_input.text(),
-      'odoo_username': self.user_input.text(),
-      'cert_path': self.cert_input.text(),
-      'use_dnie': self.dnie_checkbox.isChecked()
-    }
-
-    self.save_config()
-
-    QMessageBox.information(self, 'Guardado', 'Configuración guardada correctamente')
-
-   """
 
   def process_signature(self, data, credentials):
     """
@@ -433,8 +389,8 @@ class MayaSignerService(QObject):
         cert_path=credentials.get('cert_path'),
         cert_password=credentials['cert_password'],
         use_dnie=credentials.get('use_dnie', False),
-        progress_callback=None,  
-        cleanup=True
+        progress_callback=None,
+        cleanup=True  # solo ponerlo a False en entornos de pruebas!!
       )
       
       if not result['success']:
