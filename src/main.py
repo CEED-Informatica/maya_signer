@@ -98,7 +98,11 @@ def send_signature_request(data):
       return True
     else:
       content = response.json()
-      logger.error(f"Error del servicio: {response.status_code} / {content.get('error', 'Unknown error')}")
+      error_msg = content.get('error', 'Unknown error')
+      if error_msg == "user_cancelled":
+        logger.warning("El usuario canceló la operación de firma.")
+      else:
+        logger.error(f"Error del servicio: {response.status_code} / {error_msg}")
       return False
         
   except Exception as e:
@@ -247,4 +251,5 @@ def main():
   return 1
 
 if __name__ == '__main__':
+  # si para el debugger es porque está marcada como opción los breakpoints en Uncaught Exceptions
   sys.exit(main())  # entra, ejecuta el servidor y sale

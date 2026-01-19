@@ -72,26 +72,42 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
         # Esperar a que se introduzcan (timeout 120s)
         for _ in range(60):
           time.sleep(2)
-          credentials = self.server.maya_signer_service.get_credentials(data['url'])
-          if credentials:
-              break
+          status = self.server.maya_signer_service.get_credentials(data['url'])
+
+          if status == "CANCELLED":
+            # Si detectamos la cancelación, salimos del bucle inmediatamente
+            credentials = "CANCELLED"
+            break
           
-      if credentials:
+          if status:  # hay credenciales, y no es cancelled
+            credentials = status
+            break
+          
+      if credentials and credentials != "CANCELLED":
         # Procesar firma en background
         threading.Thread(
             target=self.server.maya_signer_service.process_signature,
             args=(data, credentials),
-            daemon=False
+            daemon=True
         ).start()
         
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps({'status': 'processing'}).encode())
+      elif credentials == "CANCELLED":
+        self.send_response(499)
+        self.end_headers()
+        self.wfile.write(json.dumps({'error': "user_cancelled"}).encode())
+
+        # Limpio el marcador de cancelación para la próxima vez
+        if data['url'] in self.server.maya_signer_service.credentials_store:
+          del self.server.maya_signer_service.credentials_store[data['url']]
       else:
         self.send_response(401)
         self.end_headers()
-        self.wfile.write(json.dumps({'error': 'credentials_required'}).encode())
+        self.wfile.write(json.dumps({'error': "credentials_required"}).encode())
+
   
     except Exception as e:
       logger.error(f"Error en handler: {str(e)}")
@@ -171,6 +187,10 @@ class MayaSignerService(QObject):
           dialog.credentials['use_dnie'],
           dialog.credentials['cert_path'],
       )
+    else:
+      # Guardo un marcador de cancelación para este servidor
+      logger.info(f"Firma cancelada por el usuario para {odoo_url}")
+      self.credentials_store[odoo_url] = "CANCELLED"
 
   def create_icon(self) -> QIcon:
     """
