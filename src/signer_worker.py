@@ -248,14 +248,14 @@ class SignatureWorker:
         return 1
             
     except Exception as e:
-        self.logger.error(f"ERROR CRÍTICO: {e}")
-        self.logger.error(traceback.format_exc())
-        
-        self.update_status(
-            'error',
-            message=f"Error crítico: {str(e)}"
-        )
-        return 1
+      self.logger.error(f"ERROR CRÍTICO: {str(e)}")
+      self.logger.error(traceback.format_exc())
+      
+      self.update_status(
+        'error',
+        message=f"Error crítico: {str(e)}"
+      )
+      return 1
 
 
 def main():

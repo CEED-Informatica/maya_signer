@@ -20,7 +20,6 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon
 
 from credentials_dialog import CredentialsDialog
-from odoo_client import OdooClient
 
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -108,7 +107,7 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps({'error': "credentials_required"}).encode())
 
-  
+
     except Exception as e:
       logger.error(f"Error en handler: {str(e)}")
       self.send_response(500)
@@ -353,7 +352,7 @@ class MayaSignerService(QObject):
     Procesa la firma de documentos usando subproceso
     """
     try:
-      from odoo_client import OdooClient, OdooTokenError
+      from odoo_client import OdooClient, OdooTokenError, OdooAuthenticationError
       from subprocess_signature_manager import SubprocessSignatureManager
 
       logger.info(f"** (1) => Iniciando proceso de firma del lote {data['batch']}... **")
@@ -487,6 +486,9 @@ class MayaSignerService(QObject):
         
     except Exception as e:
       logger.error(f"Error procesando firma: {str(e)}", exc_info=True)
+
+      if type(e) == OdooAuthenticationError:
+        self.clear_credentials()
       
       # Notificar error
       if self.tray_icon:
