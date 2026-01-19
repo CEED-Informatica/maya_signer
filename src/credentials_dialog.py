@@ -9,12 +9,14 @@ import logging
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,QCheckBox,
     QLabel, QLineEdit, QPushButton, QMessageBox, QFileDialog,
-    QFrame)
-from PySide6.QtCore import Qt
+    QFrame, QProgressBar)
+from PySide6.QtCore import Qt, QTimer
 
 from pathlib import Path
 import json
 from typing import Dict
+
+from datetime import datetime, timedelta
 
 logger = logging.getLogger("maya_signer")
 
@@ -31,6 +33,11 @@ class CredentialsDialog(QDialog):
     self.url = odoo_url
     self.database = database
 
+    # Tiempo límite para introducir credenciales
+    self.expiry_minutes = 2
+    self.expiry_time = datetime.now() + timedelta(minutes=self.expiry_minutes)
+    self.start_time = datetime.now()
+
     # configuracion
     self.config_file = Path.home() / '.maya_signer' / 'config.json'
     self.config_file.parent.mkdir(exist_ok=True)
@@ -38,6 +45,11 @@ class CredentialsDialog(QDialog):
     self.config = self.load_config()
 
     self.init_ui()
+
+    # Timer para actualizar barra de progreso
+    self.timer = QTimer(self)
+    self.timer.timeout.connect(self.update_progress)
+    self.timer.start(1000)  # Actualizar cada segundo
 
   def init_ui(self):
     """
@@ -48,10 +60,10 @@ class CredentialsDialog(QDialog):
     self.setWindowTitle('Maya Signer - Credenciales')
     self.setModal(True)
     
-    self.setGeometry(300, 300, 750, 340)
+    self.setGeometry(300, 300, 750, 395)
     self.setMinimumWidth(550)
-    self.setMinimumHeight(340)
-    self.setMaximumHeight(340)
+    self.setMinimumHeight(395)
+    self.setMaximumHeight(395)
 
     main_layout = QVBoxLayout()
         
@@ -166,6 +178,32 @@ class CredentialsDialog(QDialog):
     note_label.setStyleSheet("color: #999; font-size: 12px;")
     note_label.setAlignment(Qt.AlignCenter)
 
+    # barra de progreso
+    timeout_layout = QVBoxLayout()
+    timeout_layout.setContentsMargins(15, 10, 15, 5)
+    
+    self.timeout_label = QLabel(f"Tiempo restante: {self.expiry_minutes}:00")
+    self.timeout_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #2196F3;")
+    timeout_layout.addWidget(self.timeout_label)
+    
+    self.progress_bar = QProgressBar()
+    self.progress_bar.setMaximum(self.expiry_minutes * 60)  # En segundos
+    self.progress_bar.setValue(self.expiry_minutes * 60)
+    self.progress_bar.setTextVisible(False)
+    self.progress_bar.setStyleSheet("""
+        QProgressBar {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+            height: 8px;
+        }
+        QProgressBar::chunk {
+            background-color: #4CAF50;
+            border-radius: 4px;
+        }
+    """)
+    timeout_layout.addWidget(self.progress_bar)
+
     # Botones
     button_layout = QHBoxLayout()
     button_layout.addStretch()
@@ -202,6 +240,7 @@ class CredentialsDialog(QDialog):
     main_layout.addLayout(layout) 
     main_layout.addWidget(self.status_label)
     main_layout.addWidget(note_label)
+    main_layout.addLayout(timeout_layout)
     main_layout.addLayout(button_layout) 
         
     self.setLayout(main_layout) 
@@ -322,6 +361,80 @@ class CredentialsDialog(QDialog):
         padding: 8px;
         font-size: 11px;
     """)
+
+  def update_progress(self):
+    """
+    Actualiza la barra de progreso cada segundo
+    """
+    now = datetime.now()
+    
+    # Calcular tiempo restante
+    remaining = (self.expiry_time - now).total_seconds()
+    
+    if remaining <= 0:
+      # Tiempo expirado
+      self.timer.stop()
+      self.timeout_label.setText("Tiempo expirado")
+      self.timeout_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #F44336;")
+      self.progress_bar.setValue(0)
+      self.progress_bar.setStyleSheet("""
+          QProgressBar {
+              border: 1px solid #ddd;
+              border-radius: 5px;
+              background-color: #f5f5f5;
+              height: 8px;
+          }
+          QProgressBar::chunk {
+              background-color: #F44336;
+              border-radius: 4px;
+          }
+      """)
+      
+      QMessageBox.warning(
+          self,
+          "Tiempo expirado",
+          "El tiempo de firma ha expirado. Debes iniciar el proceso nuevamente desde Odoo."
+      )
+      self.reject()
+      return
+    
+    # Actualizar barra
+    self.progress_bar.setValue(int(remaining))
+    
+    # Actualizar etiqueta
+    minutes = int(remaining // 60)
+    seconds = int(remaining % 60)
+    self.timeout_label.setText(f"Tiempo restante: {minutes}:{seconds:02d}")
+    
+    # Cambiar color según tiempo restante
+    if remaining < 60:  # Menos de 1 minuto
+      self.timeout_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #F44336;")
+      self.progress_bar.setStyleSheet("""
+          QProgressBar {
+              border: 1px solid #ddd;
+              border-radius: 5px;
+              background-color: #f5f5f5;
+              height: 8px;
+          }
+          QProgressBar::chunk {
+              background-color: #F44336;
+              border-radius: 4px;
+          }
+      """)
+    elif remaining < 180:  # Menos de 3 minutos
+      self.timeout_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #FF9800;")
+      self.progress_bar.setStyleSheet("""
+          QProgressBar {
+              border: 1px solid #ddd;
+              border-radius: 5px;
+              background-color: #f5f5f5;
+              height: 8px;
+          }
+          QProgressBar::chunk {
+              background-color: #FF9800;
+              border-radius: 4px;
+          }
+      """)
 
   def test_connection(self):
     """
