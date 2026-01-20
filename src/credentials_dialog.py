@@ -131,9 +131,13 @@ class CredentialsDialog(QDialog):
     header_layout.addWidget(title_cert_label)
     
     ### Checkbox DNIe
-    self.dnie_checkbox = QCheckBox('Usar DNIe')
+    self.dnie_checkbox = QCheckBox('Usar DNIe  ⚠️')
     self.dnie_checkbox.setChecked(self.config.get('use_dnie', False))
     self.dnie_checkbox.stateChanged.connect(self.on_dnie_changed)
+    self.dnie_checkbox.setToolTip(
+    "ATENCIÓN: Si marca esta opción, el sistema requerirá que\n"
+    "confirme la firma manualmente para CADA documento del lote."
+)
     header_layout.addWidget(self.dnie_checkbox)
 
     right_layout.addLayout(header_layout)
