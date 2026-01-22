@@ -143,7 +143,6 @@ class OdooClient(object):
     Raises:
         OdooTokenError: Si el token es inválido o expiró
     """
-    return
     if not self.batch_token:
       raise OdooTokenError("No hay token de sesión configurado")
     
@@ -374,11 +373,6 @@ class OdooClient(object):
         failed_count += 1
     
     # Actualizo el estado del lote si todos se firmaron
-    """ if failed_count == 0:
-      self.update_batch_state(batch_id, 'done')
-    else:
-      self.update_batch_state(batch_id, 'error') """
-    
     self.finalize_batch(batch_id, success_count, failed_count)
     
     logger.info(f"\tSubidos {success_count}/{len(signed_documents)} PDFs")

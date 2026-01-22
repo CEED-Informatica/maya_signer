@@ -397,11 +397,10 @@ class MayaSignerService(QObject):
 
       logger.info("\tAutenticación correcta")
 
-      # 2. Validar token del batch
       try:
         logger.info("** (3) Validando token de sesión... **")
         validation = client.validate_batch_token(int(data['batch']))
-        # OJO logger.info(f"\tToken validado: {validation.get('batch_name')}")
+        logger.info(f"\tToken validado: {validation.get('batch_name')}")
       except OdooTokenError as e:
         logger.error(f"\tToken inválido o expirado: {e}")
         
@@ -410,8 +409,6 @@ class MayaSignerService(QObject):
             "Error de autenticación",
             "El token de firma ha expirado. Inicia el proceso nuevamente desde Maya."
         )
-
-        #self.signals.update_tray_icon.emit()
         return
 
       logger.info("** (4) => Descargando PDFs sin firmar... **")
@@ -438,12 +435,25 @@ class MayaSignerService(QObject):
       if not result['success']:
         error_msg = result.get('error', 'Error desconocido')
         logger.error(f"\tError en firma: {error_msg}")
-        
-        QMessageBox.critical(
-            None,
-            "Error de firma",
-            f"Error firmando documentos: {error_msg}"
-        )
+
+        if "ERROR CRÍTICO" in error_msg.upper():
+          self.clear_credentials()
+          QMessageBox.critical(
+              None,
+              "Error de firma",
+              f"""Error firmando documentos: ¡Error crítico!. Comprueba:\n 
+                - Las credenciales del certificado
+                - El estado de pcsc_scan en sistemas linux
+                - La conexión al lector de tarjetas
+                - El estado del servicio de firma (drivers, aplicación DNIe...)
+               """
+          )
+        else:
+          QMessageBox.critical(
+              None,
+              "Error de firma",
+              f"Error firmando documentos: {error_msg}"
+          )
             
         return
       
