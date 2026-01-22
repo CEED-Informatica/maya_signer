@@ -182,7 +182,8 @@ class OdooClient(object):
       self.validate_batch_token(batch_id)
 
     try:
-      self.progress_callback('Obteniendo información del lote...')
+      if self.progress_callback:
+        self.progress_callback('Obteniendo información del lote...')
 
       batch = self.execute(
         'maya_core.signature.batch',
@@ -248,7 +249,8 @@ class OdooClient(object):
     # Decodifico los PDFs
     unsigned_docs = []
     for i, doc in enumerate(documents):
-      self.progress_callback(f'Descargando de Maya:  {i+1}/{len(documents)} documentos')
+      if self.progress_callback:
+        self.progress_callback(f'Descargando de Maya:  {i+1}/{len(documents)} documentos')
 
       if doc['state'] == 'signed':
         logger.warning(f"\tDocumento {doc['id']} ya está firmado, omitiendo...")
@@ -336,7 +338,8 @@ class OdooClient(object):
     
     for i, doc in enumerate(signed_documents):
       try:
-        self.progress_callback(f'Subiendo a Maya:  {i+1}/{len(signed_documents)} documentos')
+        if self.progress_callback:
+          self.progress_callback(f'Subiendo a Maya:  {i+1}/{len(signed_documents)} documentos')
 
         document_id = doc['document_id']
         signed_pdf_bytes = doc['signed_pdf_bytes']
