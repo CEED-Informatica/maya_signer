@@ -361,15 +361,7 @@ class MayaSignerService(QObject):
   def update_progress_ui(self, message):
     """
     Actualiza el estado de la firma en la bandeja de sistema
-    """
-    """ if current == total and total > 0:
-      self.status_action.setText("Servicio Listo")
-      self.tray_icon.setToolTip("Servicio Listo")
-    elif total > 0:
-      status_text = f"Procesando: {current}/{total} documentos"
-      self.status_action.setText(status_text)
-      self.tray_icon.setToolTip(f"Maya Signer - {status_text}") """
-    
+    """    
     self.status_action.setText(f"{message}")
     self.tray_icon.setToolTip(f"Maya Signer - {message}")
       
@@ -484,7 +476,7 @@ class MayaSignerService(QObject):
             'Firma completada',
             f'{len(signed_documents)} documentos firmados correctamente',
             QSystemTrayIcon.Information,
-            5000
+            4000
           )
             
         else:
@@ -526,7 +518,8 @@ class MayaSignerService(QObject):
      
     finally:
       self.quit_action.setEnabled(True)
-      self.status_action.setText(f"Servicio Listo")  
+      self.status_action.setText("Servicio Listo")  
+      self.tray_icon.setToolTip("Maya Signer - Servicio Listo")
 
 def main():
   """
