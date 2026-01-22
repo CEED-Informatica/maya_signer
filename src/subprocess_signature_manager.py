@@ -188,19 +188,18 @@ class SubprocessSignatureManager:
         
           # si hay cambios llamo al callback
           if status != last_status:
+            progress = status.get('progress', 0)
+            total = status.get('total', 0)
+
             logger.info(
               f"\tEstado: {status.get('status')} - "
               f"{status.get('message', '')} "
-              f"({status.get('progress', 0)}/{status.get('total', 0)})"
+              f"({progress}/{total})"
             )
-                
+    
             if progress_callback and status.get('progress'):
-              progress_callback(
-                status.get('progress', 0),
-                status.get('total', 0),
-                status.get('message', '')
-              )
-            
+              progress_callback(f'Firmando: {progress}/{total} documentos')
+
             last_status = status
             
           # ha acabado? 

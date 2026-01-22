@@ -5,7 +5,7 @@ import base64
 
 import xmlrpc.client
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 logger = logging.getLogger("maya_signer")
 
@@ -46,7 +46,8 @@ class OdooClient(object):
   """
     
   def __init__(self, url: str, db: str, username: str, 
-               password: str, batch_token: Optional[str] = None):
+               password: str, batch_token: Optional[str] = None,
+               progress_callback: Optional[Callable] = None,):
     """
       Args:
         url: URL base de Odoo
@@ -54,6 +55,7 @@ class OdooClient(object):
         username: Usuario de Odoo
         password: Contraseña de Odoo
         batch_token: Token de sesión del batch
+        progress_callback: Callback de progreso
     """
     self.url = url.rstrip('/')
     self.db = db
@@ -61,6 +63,8 @@ class OdooClient(object):
     self.password = password
     self.uid = None
     self.batch_token = batch_token
+
+    self.progress_callback = progress_callback
 
     transport = TimeoutTransport(timeout=60)
     
@@ -178,6 +182,8 @@ class OdooClient(object):
       self.validate_batch_token(batch_id)
 
     try:
+      self.progress_callback('Obteniendo información del lote...')
+
       batch = self.execute(
         'maya_core.signature.batch',
         'read',
@@ -241,7 +247,9 @@ class OdooClient(object):
         
     # Decodifico los PDFs
     unsigned_docs = []
-    for doc in documents:
+    for i, doc in enumerate(documents):
+      self.progress_callback(f'Descargando de Maya:  {i+1}/{len(documents)} documentos')
+
       if doc['state'] == 'signed':
         logger.warning(f"\tDocumento {doc['id']} ya está firmado, omitiendo...")
         continue
@@ -326,8 +334,10 @@ class OdooClient(object):
     success_count = 0
     failed_count = 0
     
-    for doc in signed_documents:
+    for i, doc in enumerate(signed_documents):
       try:
+        self.progress_callback(f'Subiendo a Maya:  {i+1}/{len(signed_documents)} documentos')
+
         document_id = doc['document_id']
         signed_pdf_bytes = doc['signed_pdf_bytes']
         signed_filename = doc.get('signed_filename', f'signed_{document_id}.pdf')

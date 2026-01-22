@@ -54,6 +54,7 @@ class MayaServiceHandler(BaseHTTPRequestHandler):
     Procesa la petición de firma de documentos
     """
     try:
+      self.server.maya_signer_service.quit_action.setEnabled(False)
       content_length = int(self.headers['Content-Length'])
       post_data = self.rfile.read(content_length)
       data = json.loads(post_data.decode('utf-8'))
@@ -357,17 +358,20 @@ class MayaSignerService(QObject):
     # Ejecuto la aplicación Qt
     return self.app.exec()
   
-  def update_progress_ui(self, current, total, message):
+  def update_progress_ui(self, message):
     """
     Actualiza el estado de la firma en la bandeja de sistema
     """
-    if current == total and total > 0:
+    """ if current == total and total > 0:
       self.status_action.setText("Servicio Listo")
       self.tray_icon.setToolTip("Servicio Listo")
     elif total > 0:
       status_text = f"Procesando: {current}/{total} documentos"
       self.status_action.setText(status_text)
-      self.tray_icon.setToolTip(f"Maya Signer - {status_text}")
+      self.tray_icon.setToolTip(f"Maya Signer - {status_text}") """
+    
+    self.status_action.setText(f"{message}")
+    self.tray_icon.setToolTip(f"Maya Signer - {message}")
       
   def process_signature(self, data, credentials):
     """
@@ -392,7 +396,8 @@ class MayaSignerService(QObject):
           db=data.get('database', ''),
           username=credentials['username'],
           password=credentials['password'],
-          batch_token=data.get('token')
+          batch_token=data.get('token'),
+          progress_callback=self.update_progress_ui
       )
           
       if not client.authenticate():
@@ -404,7 +409,7 @@ class MayaSignerService(QObject):
       try:
         logger.info("** (3) Validando token de sesión... **")
         validation = client.validate_batch_token(int(data['batch']))
-        #logger.info(f"\tToken validado: {validation.get('batch_name')}")
+        # OJO logger.info(f"\tToken validado: {validation.get('batch_name')}")
       except OdooTokenError as e:
         logger.error(f"\tToken inválido o expirado: {e}")
         
@@ -435,7 +440,7 @@ class MayaSignerService(QObject):
         cert_password=credentials['cert_password'],
         use_dnie=credentials.get('use_dnie', False),
         progress_callback=self.update_progress_ui,
-        cleanup=False  # solo ponerlo a False en entornos de pruebas!!
+        cleanup=True  # solo ponerlo a False en entornos de pruebas!!
       )
       
       if not result['success']:
@@ -511,7 +516,7 @@ class MayaSignerService(QObject):
 
       if type(e) == OdooAuthenticationError:
         self.clear_credentials()
-      
+
       # Notificar error
       QMessageBox.critical(
         None,
@@ -521,6 +526,7 @@ class MayaSignerService(QObject):
      
     finally:
       self.quit_action.setEnabled(True)
+      self.status_action.setText(f"Servicio Listo")  
 
 def main():
   """
