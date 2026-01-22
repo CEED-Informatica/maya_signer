@@ -144,7 +144,7 @@ class MayaSignerService(QObject):
     # (Gestion documental/Gestion alumnos)
     self.credentials_store = {}  
   
-    self.version = "0.2a0"
+    self.version = "0.3a0"
 
     # Señales para Qt
     self.signals = SignalEmitter()
@@ -228,9 +228,11 @@ class MayaSignerService(QObject):
     # Intenta cargar icono y si no puede usa uno por defecto
     icon_path = Path(__file__).parent / 'icon.png'
     if icon_path.exists():
-      self.tray_icon.setIcon(QIcon(str(icon_path)))
+      self.icon = QIcon(str(icon_path))
     else:
-      self.tray_icon.setIcon(self.create_icon())
+      self.icon = self.create_icon()
+
+    self.tray_icon.setIcon(self.icon)
 
     self.update_tray_menu()
 
@@ -240,7 +242,7 @@ class MayaSignerService(QObject):
         'Maya Signer',
         'Servicio iniciado. Esperando solicitudes...',
         QSystemTrayIcon.Information,
-        2000
+        3000
     )
 
   def update_tray_menu(self):
@@ -263,6 +265,12 @@ class MayaSignerService(QObject):
 
     self.tray_menu.addSeparator()
 
+    # Información sobre el estado de la firma
+    self.status_action = self.tray_menu.addAction("Servicio Listo")
+    self.status_action.setEnabled(False) 
+    
+    self.tray_menu.addSeparator()
+
     connections_action = self.tray_menu.addAction(f"Conexiones activas: {'OK' if self.credentials_store else 'Ninguna'} ({len(self.credentials_store)})")
     connections_action.setEnabled(False)
 
@@ -271,11 +279,13 @@ class MayaSignerService(QObject):
 
     self.tray_menu.addSeparator()
     
-    quit_action = self.tray_menu.addAction('Salir')
-    quit_action.triggered.connect(self.quit_service)
-    
+    self.quit_action = self.tray_menu.addAction('Salir')
+    self.quit_action.triggered.connect(self.quit_service)
+
     self.tray_icon.setContextMenu(self.tray_menu)
-   
+
+    self.tray_icon.setToolTip("Maya Signer - Servicio Listo")
+
   def start_server(self):
     """
     Inicia el servidor HTTP local
@@ -346,7 +356,19 @@ class MayaSignerService(QObject):
     
     # Ejecuto la aplicación Qt
     return self.app.exec()
-
+  
+  def update_progress_ui(self, current, total, message):
+    """
+    Actualiza el estado de la firma en la bandeja de sistema
+    """
+    if current == total and total > 0:
+      self.status_action.setText("Servicio Listo")
+      self.tray_icon.setToolTip("Servicio Listo")
+    elif total > 0:
+      status_text = f"Procesando: {current}/{total} documentos"
+      self.status_action.setText(status_text)
+      self.tray_icon.setToolTip(f"Maya Signer - {status_text}")
+      
   def process_signature(self, data, credentials):
     """
     Procesa la firma de documentos usando subproceso
@@ -359,9 +381,12 @@ class MayaSignerService(QObject):
       logger.info(f"\tServidor: {data['url']}")
       logger.info(f"\tBase de datos: {data.get('database', '')}")
       logger.info(f"\tUsuario: {credentials['username']}")
-      logger.info(f"  Token: {data.get('token', 'N/A')[:10]}...")
+      logger.info(f"\tToken: {data.get('token', 'N/A')[:10]}...")
     
       logger.info("** (2) => Conectando con Odoo... **")
+
+      self.quit_action.setEnabled(False)
+
       client = OdooClient(
           url=data['url'],
           db=data.get('database', ''),
@@ -379,16 +404,17 @@ class MayaSignerService(QObject):
       try:
         logger.info("** (3) Validando token de sesión... **")
         validation = client.validate_batch_token(int(data['batch']))
-        logger.info(f"\tToken validado: {validation.get('batch_name')}")
+        #logger.info(f"\tToken validado: {validation.get('batch_name')}")
       except OdooTokenError as e:
         logger.error(f"\tToken inválido o expirado: {e}")
-        if self.tray_icon:
-            self.tray_icon.showMessage(
-                'Error de autenticación',
-                'El token de firma ha expirado. Inicia el proceso nuevamente desde Maya.',
-                QSystemTrayIcon.Critical,
-                5000
-            )
+        
+        QMessageBox.critical(
+            None,
+            "Error de autenticación",
+            "El token de firma ha expirado. Inicia el proceso nuevamente desde Maya."
+        )
+
+        #self.signals.update_tray_icon.emit()
         return
 
       logger.info("** (4) => Descargando PDFs sin firmar... **")
@@ -408,21 +434,20 @@ class MayaSignerService(QObject):
         cert_path=credentials.get('cert_path'),
         cert_password=credentials['cert_password'],
         use_dnie=credentials.get('use_dnie', False),
-        progress_callback=None,
-        cleanup=True  # solo ponerlo a False en entornos de pruebas!!
+        progress_callback=self.update_progress_ui,
+        cleanup=False  # solo ponerlo a False en entornos de pruebas!!
       )
       
       if not result['success']:
         error_msg = result.get('error', 'Error desconocido')
         logger.error(f"\tError en firma: {error_msg}")
         
-        if self.tray_icon:
-          self.tray_icon.showMessage(
-            'Error de firma',
-            f'Error firmando documentos: {error_msg}',
-            QSystemTrayIcon.Critical,
-            5000
-          )
+        QMessageBox.critical(
+            None,
+            "Error de firma",
+            f"Error firmando documentos: {error_msg}"
+        )
+            
         return
       
       signed_documents = result['signed_documents']
@@ -459,25 +484,22 @@ class MayaSignerService(QObject):
             
         else:
           logger.error("\tError al subir documentos firmados a Odoo")
-        
-          if self.tray_icon:
-            self.tray_icon.showMessage(
-              'Error de subida',
-              'Error al subir documentos firmados a Odoo',
-              QSystemTrayIcon.Critical,
-              5000
-            )
+          
+          QMessageBox.critical(
+            None,
+            "Error de subida",
+            "Error al subir documentos firmados a Odoo"
+          )
           return
               
       except OdooTokenError as e:
         logger.error(f"\tToken expiró durante la subida: {str(e)}")
-        if self.tray_icon:
-            self.tray_icon.showMessage(
-                'Error de sesión',
-                'El token expiró durante la subida. Algunos documentos pueden no haberse guardado.',
-                QSystemTrayIcon.Critical,
-                5000
-            )
+        
+        QMessageBox.critical(
+            None,
+            "Error de sesión",
+            "El token expiró durante la subida. Algunos documentos pueden no haberse guardado."
+        )
         return
       
       logger.info("=" * 60)
@@ -491,13 +513,14 @@ class MayaSignerService(QObject):
         self.clear_credentials()
       
       # Notificar error
-      if self.tray_icon:
-        self.tray_icon.showMessage(
-          'Error',
-          f'Error en el proceso de firma: {str(e)}',
-          QSystemTrayIcon.Critical,
-          5000
-        )
+      QMessageBox.critical(
+        None,
+        "Error",
+        f'Error en el proceso de firma: {str(e)}'
+      )
+     
+    finally:
+      self.quit_action.setEnabled(True)
 
 def main():
   """
