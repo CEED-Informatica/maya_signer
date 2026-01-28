@@ -5,6 +5,7 @@
 
 # ignorar la carpeta build
 build/*
-# menos los .py de la carpeta
+# menos los .py y los .spec de la carpeta
 !build/*.py
+!build/*.spec
 
