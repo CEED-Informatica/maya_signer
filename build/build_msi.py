@@ -211,13 +211,11 @@ def create_license_rtf():
 {{\fonttbl{{\f0 Arial;}}}}
 {{\colortbl;\red0\green0\blue0;}}}
 \f0\fs20
-\par Maya Signer - Licencia MIT
+\par Maya Signer - Licencia GPL 3.0
 \par
 \par Copyright (c) 2025 """ + AUTHOR + r"""
 \par
-\par Se concede permiso, libre de cargos, a cualquier persona que obtenga una copia de este software...
 \par
-\par GPL v3.0
 }}"""
     
     license_file.write_text(license_content, encoding='utf-8')
