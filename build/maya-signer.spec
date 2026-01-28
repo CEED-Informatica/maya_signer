@@ -2,6 +2,7 @@
 
 import sys
 import os
+import platform
 from pathlib import Path
 
 sys.path.insert(0, str(Path(SPEC).parent.parent))
@@ -11,6 +12,18 @@ block_cipher = None
 
 # Rutas
 src_path = '../src'
+
+# Detectar sistema operativo
+IS_WINDOWS = platform.system() == 'Windows'
+IS_MACOS = platform.system() == 'Darwin'
+IS_LINUX = platform.system() == 'Linux'
+
+# Icono del ejecutable (solo Windows y macOS)
+exe_icon = None
+if IS_WINDOWS and os.path.exists(icon_ico_path):
+    exe_icon = icon_ico_path
+elif IS_MACOS and os.path.exists(os.path.join(src_path, 'icon.icns')):
+    exe_icon = os.path.join(src_path, 'icon.icns')
 
 # Análisis del servicio
 service_a = Analysis(
@@ -62,12 +75,13 @@ service_exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False if IS_WINDOWS else True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=exe_icon,
 )
 
 # Análisis del cliente principal
@@ -109,4 +123,5 @@ main_exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=exe_icon,
 )
