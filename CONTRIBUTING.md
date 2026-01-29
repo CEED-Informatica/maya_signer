@@ -1,4 +1,4 @@
-# Contribuyendo a [Nombre de tu Proyecto]
+# Contribuyendo a Maya | Signer
 
 ¡Gracias por tu interés en contribuir! Este proyecto es open source y abierto a colaboraciones. A continuación, te explicamos cómo puedes ayudar de forma efectiva.
 

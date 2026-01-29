@@ -1,11 +1,11 @@
 # Maya | Signer
 
-**Maya | Signer** es una aplicación de escritorio que permite firmar documentos PDF electrónicamente desde el sistema Maya (Odoo) usando certificados digitales o DNIe. 
-
 [![License](https://img.shields.io/badge/license-GPL-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](https://github.com/Maya-AQSS/maya-signer)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
 [![Release](https://img.shields.io/github/v/release/Maya-AQSS/maya-signer)](https://github.com/Maya-AQSS/maya-signer/releases)
+
+**Maya | Signer** es una aplicación de escritorio que permite firmar documentos PDF electrónicamente desde el sistema Maya (Odoo) usando certificados digitales o DNIe. 
 
 Su objetivo es permitir la firma electrónica de lotes de documentos desde dentro de _Maya_, teniendo en cuenta que tanto los certificados digitales como el DNIe están en el PC del usuario y que, por seguridad, el navegador no puede acceder a ellos.
 
