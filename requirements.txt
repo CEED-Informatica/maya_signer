@@ -1,3 +1,5 @@
+# pip3 install -r requirements.txt 
+
 pyhanko>=0.20.0
 
 # PKCS#11 soporte para DNIe
