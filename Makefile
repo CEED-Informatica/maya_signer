@@ -16,8 +16,8 @@ else
     PYTHON := python3
 endif
 
-# Leer versión desde version.py
-VERSION := $(shell python3 -c "from manifest import __version__; print(__version__)")
+# Leer versión desde manifest.py
+VERSION := $(shell $(PYTHON) -c "from manifest import __version__; print(__version__)")
 
 # Nombres de paquetes
 PACKAGE := maya-signer_$(VERSION)_amd64.deb
@@ -28,7 +28,7 @@ PACKAGE_MACOS := maya-signer_$(VERSION)_macOS.dmg
 
 help:
 	@echo "============================================================"
-	@echo "Maya Signer v$(VERSION) - Build System"
+	@echo "Maya Signer v$(VERSION) - Installer Build System"
 	@echo "============================================================"
 	@echo "Plataforma detectada: $(PLATFORM)"
 	@echo ""
@@ -59,36 +59,36 @@ clean:
 	rm -f *.deb *.msi *.dmg
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
-	@echo ">> Limpieza completada <<"
+	@echo "\033[0;32m✓\033[0m Limpieza completada"
 
 # Linux
 build-deb:
 	@echo "Construyendo paquete .deb para Linux..."
 	cd build && $(PYTHON) build_deb.py
-	@echo "✓ .deb construido"
+	@echo "\033[0;32m✓\033[0m  .deb construido"
 
 install-deb: build-deb
 	@echo "Instalando paquete .deb..."
 	sudo dpkg -i $(PACKAGE_LINUX)
 	sudo apt-get install -f -y
-	@echo "✓ Instalado"
+	@echo "\033[0;32m✓\033[0m  Instalado"
 
 # Windows
 build-msi:
 	@echo "Construyendo instalador .msi para Windows..."
 	cd build && $(PYTHON) build_msi.py
-	@echo "✓ .msi construido"
+	@echo "\033[0;32m✓\033[0m  .msi construido"
 
 install-msi: build-msi
 	@echo "Instalando .msi..."
 	msiexec /i $(PACKAGE_WINDOWS) /qb
-	@echo "✓ Instalado"
+	@echo "\033[0;32m✓\033[0m  Instalado"
 
 # macOS
 build-dmg:
 	@echo "Construyendo instalador .dmg para macOS..."
 	cd build && $(PYTHON) build_dmg.py
-	@echo "✓ .dmg construido"
+	@echo "\033[0;32m✓\033[0m  .dmg construido"
 
 install-dmg: build-dmg
 	@echo "Montando DMG..."
