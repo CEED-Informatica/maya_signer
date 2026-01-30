@@ -9,3 +9,9 @@ build/*
 !build/*.py
 !build/*.spec
 
+# para la parte de vitepress
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+.DS_Store
+
