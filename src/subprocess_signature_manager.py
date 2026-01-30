@@ -8,6 +8,7 @@ Gestor de firma mediante subprocesos externos al servidor
 import logging
 import subprocess
 import json
+import sys
 import time
 import shutil
 from pathlib import Path
@@ -28,13 +29,19 @@ class SubprocessSignatureManager:
                        Si es None, busca en el mismo directorio
     """
     if worker_script is None:
-      # Busco signer_worker.py en el mismo directorio
-      worker_script = Path(__file__).parent / "signer_worker.py"
+      if getattr(sys, 'frozen', False):
+        base_path = Path(sys.executable).parent
+        worker_path = base_path / "maya-signer-worker"  # Sin .exe en Linux/macOS
+        if sys.platform == 'win32':
+          worker_path = base_path / "maya-signer-worker.exe"
+      else:
+        # Busco signer_worker.py en el mismo directorio
+        worker_path = Path(__file__).parent / "signer_worker.py"
     
-    self.worker_script = Path(worker_script)
+    self.worker_script = Path(worker_path)
     
     if not self.worker_script.exists():
-      raise FileNotFoundError(f"Worker script no encontrado: {self.worker_script}")
+      raise FileNotFoundError(f"Worker script/ejecutable no encontrado: {self.worker_script}")
     
     self.work_dir = None
     self.process = None
