@@ -20,8 +20,8 @@ IS_LINUX = platform.system() == 'Linux'
 
 # Icono del ejecutable (solo Windows y macOS)
 exe_icon = None
-if IS_WINDOWS and os.path.exists(icon_ico_path):
-    exe_icon = icon_ico_path
+if IS_WINDOWS and os.path.exists(os.path.join(src_path, 'icon.ico')):
+    exe_icon = os.path.join(src_path, 'icon.ico')
 elif IS_MACOS and os.path.exists(os.path.join(src_path, 'icon.icns')):
     exe_icon = os.path.join(src_path, 'icon.icns')
 
@@ -124,4 +124,46 @@ main_exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=exe_icon,
+)
+
+# Análisis del worker
+worker_a = Analysis(
+    [f'{src_path}/signer_worker.py'],
+    pathex=[src_path],
+    binaries=[],
+    datas=[],
+    hiddenimports=['logging', 'json', 'pathlib', 'typing', 'traceback', 'sys'], 
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+worker_pyz = PYZ(worker_a.pure, worker_a.zipped_data, cipher=block_cipher)
+
+worker_exe = EXE(
+    worker_pyz,
+    worker_a.scripts,
+    worker_a.binaries,
+    worker_a.zipfiles,
+    worker_a.datas,
+    [],
+    name='maya-signer-worker',  # Nombre del exe
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,  # Worker necesita consola para logs
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=exe_icon
 )
