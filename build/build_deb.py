@@ -123,6 +123,7 @@ def create_desktop_file(deb_root):
     
     content = f"""[Desktop Entry]
 Version={VERSION}
+Encoding=UTF-8
 Type=Application
 Name=Maya Signer
 Comment=Servicio de firma electrónica para Maya
@@ -135,7 +136,7 @@ StartupNotify=false
 """
     
     desktop_file.write_text(content, encoding='utf-8')
-    desktop_file.chmod(0o644)
+    desktop_file.chmod(0o755)
     
     print("✓ Archivo .desktop creado")
 
@@ -268,6 +269,7 @@ Architecture: amd64
 Depends: libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xfixes0
 Recommends: opensc, pcscd
 Maintainer: {MAINTAINER}
+Homepage: https://maya-aqss.github.io/maya-signer/
 Description: {DESCRIPTION}
  Maya Signer es un servicio de firma electrónica que permite
  firmar documentos PDF desde el sistema Maya (Odoo) usando

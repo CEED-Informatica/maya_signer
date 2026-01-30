@@ -131,6 +131,8 @@ def start_service():
   if not service_exe.exists():
     logger.error(f"Servicio no encontrado: {service_exe}")
     return False
+  else:
+    logger.info(f"Servicio encontrado: {service_exe}")
   
   try:
     # Iniciar en background
@@ -146,7 +148,7 @@ def start_service():
     else:
       # Unix: usar nohup
       subprocess.Popen(
-          [sys.executable, str(service_exe)],
+          [str(service_exe)],
           stdout=subprocess.DEVNULL,
           stderr=subprocess.DEVNULL,
           start_new_session=True
