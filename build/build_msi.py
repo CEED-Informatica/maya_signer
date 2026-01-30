@@ -63,8 +63,10 @@ def compile_executables():
     exe_dir = build_dir / "dist"
     
     # Verificar que se crearon
-    if not (exe_dir / "maya-signer.exe").exists() or not (exe_dir / "maya-signer-service.exe").exists():
+    if not (exe_dir / "maya-signer").exists() or not (exe_dir / "maya-signer-service").exists() \
+        or not (exe_dir / "maya-signer-worker").exists():
         print("❌ No se encontraron los ejecutables compilados")
+        print(f"   Buscando en: {exe_dir}")
         return False
     
     print("✓ Ejecutables compilados correctamente")
@@ -146,6 +148,13 @@ def create_wxs_file():
       <Component Id="ServiceExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-service'))}">
         <File Id="MayaSignerServiceEXE" 
               Source="dist\\maya-signer-service.exe" 
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Worker -->
+      <Component Id="WorkerExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-worker'))}">
+        <File Id="MayaSignerWorkerEXE" 
+              Source="dist\\maya-signer-worker.exe" 
               KeyPath="yes" />
       </Component>
 

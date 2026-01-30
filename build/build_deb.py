@@ -82,7 +82,8 @@ def compile_executables():
     exe_dir = build_dir / "dist"
     
     # Verificar que se crearon los ejecutables
-    if not (exe_dir / "maya-signer").exists() or not (exe_dir / "maya-signer-service").exists():
+    if not (exe_dir / "maya-signer").exists() or not (exe_dir / "maya-signer-service").exists() \
+        or not (exe_dir / "maya-signer-worker").exists():
         print("❌ No se encontraron los ejecutables compilados")
         print(f"   Buscando en: {exe_dir}")
         return False
@@ -101,11 +102,13 @@ def copy_executables(deb_root):
     # Copiar ejecutables
     shutil.copy(exe_dir / "maya-signer", opt_dir / "maya-signer")
     shutil.copy(exe_dir / "maya-signer-service", opt_dir / "maya-signer-service")
-    
+    shutil.copy(exe_dir / "maya-signer-worker", opt_dir / "maya-signer-worker")
+
     # Dar permisos de ejecución
     (opt_dir / "maya-signer").chmod(0o755)
     (opt_dir / "maya-signer-service").chmod(0o755)
-    
+    (opt_dir / "maya-signer-worker").chmod(0o755)
+
     # Crear enlaces simbólicos en /usr/bin
     bin_dir = deb_root / "usr" / "bin"
     os.symlink("/opt/maya-signer/maya-signer", bin_dir / "maya-signer")
@@ -118,7 +121,8 @@ def create_desktop_file(deb_root):
     
     desktop_file = deb_root / "usr" / "share" / "applications" / "maya-signer.desktop"
     
-    content = """[Desktop Entry]
+    content = f"""[Desktop Entry]
+Version={VERSION}
 Type=Application
 Name=Maya Signer
 Comment=Servicio de firma electrónica para Maya

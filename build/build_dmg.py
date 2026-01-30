@@ -61,8 +61,10 @@ def compile_executables():
     exe_dir = build_dir / "dist"
     
     # Verificar que se crearon
-    if not (exe_dir / "maya-signer").exists() or not (exe_dir / "maya-signer-service").exists():
+    if not (exe_dir / "maya-signer").exists() or not (exe_dir / "maya-signer-service").exists() \
+        or not (exe_dir / "maya-signer-worker").exists():
         print("❌ No se encontraron los ejecutables compilados")
+        print(f"   Buscando en: {exe_dir}")
         return False
     
     print("✓ Ejecutables compilados correctamente")
@@ -91,11 +93,13 @@ def create_app_bundle():
     print("Copiando ejecutables...")
     shutil.copy(dist_dir / "maya-signer", macos_dir / "maya-signer")
     shutil.copy(dist_dir / "maya-signer-service", macos_dir / "maya-signer-service")
+    shutil.copy(dist_dir / "maya-signer-worker", macos_dir / "maya-signer-worker")
     
     # Dar permisos de ejecución
     (macos_dir / "maya-signer").chmod(0o755)
     (macos_dir / "maya-signer-service").chmod(0o755)
-    
+    (macos_dir / "maya-signer-worker").chmod(0o755)
+
     # Copiar icono si existe
     icon_src = build_dir.parent / "src" / "icon.icns"
     if icon_src.exists():
