@@ -36,7 +36,6 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-
       # Instala las dependencias de forma limpia y determinista,
       # borrando node_modules y usando exactamente las versiones especificadas
       # en package-lock.json
@@ -48,7 +47,7 @@ jobs:
       - name: Build with VitePress
         run: |
           cd docs
-          npm run docs:build
+          npm run src:build
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
