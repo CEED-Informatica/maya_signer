@@ -6,7 +6,7 @@ hero:
   text: "Firma electrónica para Maya"
   tagline: Firma documentos PDF desde Maya (Odoo) con certificados digitales o DNIe
   image:
-    src: /hero-logo.png
+    src: /logo_maya_signer.png
     alt: Maya Signer
   actions:
     - theme: brand
@@ -83,6 +83,8 @@ graph LR
 
 </center>
 
+<br>
+
 1. **Usuario hace clic en "Firmar"** en _Maya_ (Odoo)
 2. **Se abre el protocolo `maya://`** que lanza _Maya | Signer_
 3. **Se solicitan credenciales** (solo primera vez)
@@ -109,6 +111,7 @@ graph LR
 - Soporte para certificados .p12/.pfx
 - Soporte para DNIe (Documento Nacional de Identidad electrónico)
 - Múltiples servidores Maya simultáneos
+- Posibilidad de firmar de varios documentos en una sola petición
 
 ## Próximos Pasos
 
@@ -130,5 +133,5 @@ graph LR
 
 ¿Necesitas ayuda? Tenemos varias opciones:
 
-- 📖 [Documentación completa](/user/getting-started)
-- 🐛 [Reportar un bug](https://github.com/Maya-AQSS/maya-signer/issues)
+- [Documentación completa](/user/getting-started)
+- [Reportar un bug](https://github.com/Maya-AQSS/maya-signer/issues)
