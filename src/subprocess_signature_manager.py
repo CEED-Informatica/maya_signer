@@ -125,7 +125,7 @@ class SubprocessSignatureManager:
     """
     import sys
     
-    cmd = [sys.executable, str(self.worker_script), str(work_dir)]
+    cmd = [str(self.worker_script), str(work_dir)]
     
     logger.info(f"  Iniciando worker: {' '.join(cmd)}")
     
