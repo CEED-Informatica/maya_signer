@@ -63,8 +63,8 @@ def compile_executables():
     exe_dir = build_dir / "dist"
     
     # Verificar que se crearon
-    if not (exe_dir / "maya-signer").exists() or not (exe_dir / "maya-signer-service").exists() \
-        or not (exe_dir / "maya-signer-worker").exists():
+    if not (exe_dir / "maya-signer.exe").exists() or not (exe_dir / "maya-signer-service.exe").exists() \
+        or not (exe_dir / "maya-signer-worker.exe").exists():
         print("❌ No se encontraron los ejecutables compilados")
         print(f"   Buscando en: {exe_dir}")
         return False
