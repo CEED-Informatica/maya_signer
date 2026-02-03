@@ -1,0 +1,24 @@
+[tool.pytest.ini_options]
+# Configuración de pytest
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Directorio raíz al PYTHONPATH
+pythonpath = ["."]
+
+# Opciones de output
+addopts = [
+    "-v",                   # Verbose
+    "--tb=short",           # Traceback corto
+    "--strict-markers",     # Validar markers
+    "-ra",                  # Mostrar resumen de todos los tests
+]
+
+# Markers personalizados (opcional)
+markers = [
+    "slow: marca tests que tardan mucho",
+    "integration: tests de integración",
+    "unit: tests unitarios",
+]
