@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Crea un instalador MSI para Maya Signer en Windows
-Requiere: pyinstaller, msilib (incluido en Python en Windows)
+Requiere: pyinstaller, WiX Toolset 6
 Generado por Claude Sonnet 4.5 (adaptado aoltra)
 """
 
@@ -19,7 +19,7 @@ from manifest import __version__, __maintainer__, __description__, __package_nam
 
 VERSION = __version__
 PACKAGE_NAME = __package_name__
-AUTHOR = __maintainer__
+AUTHOR = __maintainer__.replace('>', '&gt;').replace('<', '&lt;')
 DESCRIPTION = __description__
 
 # Para MSI, la versión debe tener exactamente 3 números (X.Y.Z)
@@ -73,7 +73,7 @@ def compile_executables():
     return True
 
 def create_wxs_file():
-    """Crea el archivo WXS para WiX Toolset"""
+    """Crea el archivo WXS para WiX Toolset 6"""
     print("\n" + "="*60)
     print("CREANDO ARCHIVO WXS")
     print("="*60)
@@ -85,125 +85,107 @@ def create_wxs_file():
     upgrade_code = str(uuid.uuid5(uuid.NAMESPACE_DNS, f'maya-signer-upgrade-{VERSION}'))
     product_id = "*"  # WiX generará uno automáticamente
     
+    # WiX 6 usa el namespace actualizado
     wxs_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="{product_id}" 
-           Name="Maya Signer" 
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Maya Signer" 
            Language="1033" 
            Version="{MSI_VERSION}" 
            Manufacturer="{AUTHOR}" 
            UpgradeCode="{upgrade_code}">
     
-    <Package InstallerVersion="200" 
-             Compressed="yes" 
-             InstallScope="perMachine" 
-             Description="{DESCRIPTION}"
-             Comments="Servicio de firma electrónica para Maya (Odoo)" />
+    <SummaryInformation Description="{DESCRIPTION}"
+                        Comments="Servicio de firma electrónica para Maya (Odoo)"
+                        Manufacturer="{AUTHOR}" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    
     <MediaTemplate EmbedCab="yes" />
-
-    <Feature Id="ProductFeature" Title="Maya Signer" Level="1">
-      <ComponentGroupRef Id="ProductComponents" />
-      <ComponentRef Id="ApplicationShortcut" />
-      <ComponentRef Id="ProtocolHandler" />
-    </Feature>
 
     <!-- Iconos -->
     <Icon Id="icon.ico" SourceFile="dist\\maya-signer.exe" />
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
     <!-- UI -->
-    <UIRef Id="WixUI_InstallDir" />
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
 
-  </Product>
+    <!-- Estructura de directorios -->
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="Maya Signer">
+        
+        <!-- Ejecutable principal -->
+        <Component Id="MainExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-exe'))}">
+          <File Id="MayaSignerEXE" 
+                Source="dist\\maya-signer.exe" />
+        </Component>
 
-  <!-- Estructura de directorios -->
-  <Fragment>
-    <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="Maya Signer" />
+        <!-- Servicio -->
+        <Component Id="ServiceExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-service'))}">
+          <File Id="MayaSignerServiceEXE" 
+                Source="dist\\maya-signer-service.exe" />
+        </Component>
+
+        <!-- Worker -->
+        <Component Id="WorkerExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-worker'))}">
+          <File Id="MayaSignerWorkerEXE" 
+                Source="dist\\maya-signer-worker.exe" />
+        </Component>
+
+        <!-- Registro del protocolo maya:// -->
+        <Component Id="ProtocolHandler" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-protocol'))}">
+          <RegistryKey Root="HKCR" Key="maya">
+            <RegistryValue Type="string" Value="URL:Maya Protocol" />
+            <RegistryValue Name="URL Protocol" Type="string" Value="" />
+            
+            <RegistryKey Key="DefaultIcon">
+              <RegistryValue Type="string" Value="[INSTALLFOLDER]maya-signer.exe,0" />
+            </RegistryKey>
+            
+            <RegistryKey Key="shell\\open\\command">
+              <RegistryValue Type="string" Value='"[INSTALLFOLDER]maya-signer.exe" "%1"' />
+            </RegistryKey>
+          </RegistryKey>
+        </Component>
+
       </Directory>
-      
-      <Directory Id="ProgramMenuFolder">
-        <Directory Id="ApplicationProgramsFolder" Name="Maya Signer"/>
-      </Directory>
-    </Directory>
-  </Fragment>
-
-  <!-- Componentes -->
-  <Fragment>
-    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      
-      <!-- Ejecutable principal -->
-      <Component Id="MainExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-exe'))}">
-        <File Id="MayaSignerEXE" 
-              Source="dist\\maya-signer.exe" 
-              KeyPath="yes" />
-      </Component>
-
-      <!-- Servicio -->
-      <Component Id="ServiceExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-service'))}">
-        <File Id="MayaSignerServiceEXE" 
-              Source="dist\\maya-signer-service.exe" 
-              KeyPath="yes" />
-      </Component>
-
-      <!-- Worker -->
-      <Component Id="WorkerExecutable" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-worker'))}">
-        <File Id="MayaSignerWorkerEXE" 
-              Source="dist\\maya-signer-worker.exe" 
-              KeyPath="yes" />
-      </Component>
-
-    </ComponentGroup>
+    </StandardDirectory>
 
     <!-- Acceso directo en menú inicio -->
-    <DirectoryRef Id="ApplicationProgramsFolder">
-      <Component Id="ApplicationShortcut" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-shortcut'))}">
-        <Shortcut Id="ApplicationStartMenuShortcut"
-                  Name="Maya Signer"
-                  Description="Servicio de firma electrónica"
-                  Target="[INSTALLFOLDER]maya-signer.exe"
-                  Arguments="--start-service"
-                  WorkingDirectory="INSTALLFOLDER"/>
-        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall"/>
-        <RegistryValue Root="HKCU" 
-                       Key="Software\\MayaSigner" 
-                       Name="installed" 
-                       Type="integer" 
-                       Value="1" 
-                       KeyPath="yes"/>
-      </Component>
-    </DirectoryRef>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Maya Signer">
+        <Component Id="ApplicationShortcut" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-signer-shortcut'))}">
+          <Shortcut Id="ApplicationStartMenuShortcut"
+                    Name="Maya Signer"
+                    Description="Servicio de firma electrónica"
+                    Target="[INSTALLFOLDER]maya-signer.exe"
+                    Arguments="--start-service"
+                    WorkingDirectory="INSTALLFOLDER"/>
+          <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
+          <RegistryValue Root="HKCU" 
+                         Key="Software\\MayaSigner" 
+                         Name="installed" 
+                         Type="integer" 
+                         Value="1" 
+                         KeyPath="yes"/>
+        </Component>
+      </Directory>
+    </StandardDirectory>
 
-    <!-- Registro del protocolo maya:// -->
-    <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="ProtocolHandler" Guid="{str(uuid.uuid5(uuid.NAMESPACE_DNS, 'maya-protocol'))}">
-        <RegistryKey Root="HKCR" Key="maya">
-          <RegistryValue Type="string" Value="URL:Maya Protocol" />
-          <RegistryValue Name="URL Protocol" Type="string" Value="" />
-          
-          <RegistryKey Key="DefaultIcon">
-            <RegistryValue Type="string" Value="[INSTALLFOLDER]maya-signer.exe,0" />
-          </RegistryKey>
-          
-          <RegistryKey Key="shell\\open\\command">
-            <RegistryValue Type="string" Value='"[INSTALLFOLDER]maya-signer.exe" "%1"' />
-          </RegistryKey>
-        </RegistryKey>
-        
-        <RegistryValue Root="HKCR" 
-                       Key="maya" 
-                       Type="string" 
-                       Value="URL:Maya Protocol" 
-                       KeyPath="yes"/>
-      </Component>
-    </DirectoryRef>
+    <!-- Features -->
+    <Feature Id="ProductFeature" Title="Maya Signer" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="ServiceExecutable" />
+      <ComponentRef Id="WorkerExecutable" />
+      <ComponentRef Id="ApplicationShortcut" />
+      <ComponentRef Id="ProtocolHandler" />
+    </Feature>
 
-  </Fragment>
+    <!-- UI Reference -->
+    <ui:WixUI Id="WixUI_InstallDir" 
+              InstallDirectory="INSTALLFOLDER"
+              xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" />
+
+  </Package>
 </Wix>
 """
     
@@ -231,57 +213,43 @@ def create_license_rtf():
     print(f"✓ Archivo de licencia creado: {license_file}")
 
 def build_msi():
-    """Construye el MSI usando WiX Toolset"""
+    """Construye el MSI usando WiX Toolset 6"""
     print("\n" + "="*60)
-    print("CONSTRUYENDO MSI CON WIX TOOLSET")
+    print("CONSTRUYENDO MSI CON WIX TOOLSET 6")
     print("="*60)
     
     build_dir = Path(__file__).parent
     wxs_file = build_dir / "maya-signer.wxs"
-    wixobj_file = build_dir / "maya-signer.wixobj"
     msi_file = build_dir.parent / f"maya-signer_{VERSION}_x64.msi"
     
-    # Verificar que WiX está instalado
-    candle = shutil.which("candle.exe")
-    light = shutil.which("light.exe")
+    # Verificar que WiX 6 está instalado
+    wix = shutil.which("wix.exe")
     
-    if not candle or not light:
-        print("❌ WiX Toolset no encontrado.")
-        print("\nPara instalar WiX:")
-        print("1. Descarga desde: https://wixtoolset.org/releases/")
-        print("2. Instala WiX Toolset")
-        print("3. Añade al PATH: C:\\Program Files (x86)\\WiX Toolset v3.11\\bin")
+    if not wix:
+        print("❌ WiX Toolset 6 no encontrado.")
+        print("\nPara instalar WiX 6:")
+        print("1. Usando dotnet tool:")
+        print("   dotnet tool install --global wix")
+        print("\n2. O descarga desde: https://wixtoolset.org/")
+        print("\n3. Asegúrate de que 'wix.exe' está en el PATH")
         return False
     
-    print(f"✓ WiX encontrado: {candle}")
+    print(f"✓ WiX 6 encontrado: {wix}")
     
-    # Paso 1: Compilar WXS a WIXOBJ
-    print("\nCompilando archivo WXS...")
-    if not run_command([
-        "candle.exe",
-        "-arch", "x64",
-        str(wxs_file),
-        "-out", str(wixobj_file)
-    ], cwd=build_dir):
-        print("❌ Error compilando WXS")
-        return False
-    
-    # Paso 2: Linkar WIXOBJ a MSI
+    # WiX 6 simplifica el proceso: un solo comando para compilar y linkear
     print("\nGenerando archivo MSI...")
     if not run_command([
-        "light.exe",
-        "-ext", "WixUIExtension",
-        str(wixobj_file),
+        "wix.exe",
+        "build",
+        "-arch", "x64",
+        "-ext", "WixToolset.UI.wixext",
+        str(wxs_file),
         "-out", str(msi_file)
     ], cwd=build_dir):
         print("❌ Error generando MSI")
         return False
     
     print(f"\n✓ MSI creado: {msi_file}")
-    
-    # Limpiar archivos temporales
-    if wixobj_file.exists():
-        wixobj_file.unlink()
     
     return True
 
@@ -290,6 +258,7 @@ def main():
     print(f"MAYA SIGNER v{VERSION} - CREADOR DE INSTALADOR MSI")
     print("="*60)
     print(f"Versión MSI: {MSI_VERSION}")
+    print("WiX Toolset: 6.x")
     
     # Verificar que estamos en Windows
     if sys.platform != 'win32':
