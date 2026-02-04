@@ -22,6 +22,8 @@ AUTHOR = __maintainer__
 DESCRIPTION = __description__
 APP_NAME = "MayaSigner"
 
+ORGANIZATION = "CEEDCV"
+
 def run_command(cmd, cwd=None):
     """Ejecuta un comando y retorna el resultado"""
     print(f"Ejecutando: {' '.join(cmd)}")
@@ -73,7 +75,7 @@ def compile_executables():
 def create_app_bundle():
     """Crea el bundle .app de macOS"""
     print("\n" + "="*60)
-    print("CREANDO APP BUNDLE")
+    print("CREANDO APP BUNDLE CON APPLESCRIPT")
     print("="*60)
     
     build_dir = Path(__file__).parent
@@ -101,7 +103,7 @@ def create_app_bundle():
     (macos_dir / "maya-signer-worker").chmod(0o755)
 
     # Copiar icono si existe
-    icon_src = build_dir.parent / "src" / "icon.icns"
+    icon_src = build_dir.parent / "src" / "assets" / "icon.icns"
     if icon_src.exists():
         shutil.copy(icon_src, resources_dir / "icon.icns")
         icon_file = "icon.icns"
@@ -113,9 +115,9 @@ def create_app_bundle():
     print("Creando Info.plist...")
     create_info_plist(contents_dir, icon_file)
     
-    # Crear script de arranque que registra el protocolo
-    print("Creando launcher script...")
-    create_launcher_script(macos_dir)
+    # Crear AppleScript app que maneja URLs
+    print("Creando AppleScript URL handler...")
+    create_applescript_handler(resources_dir, macos_dir)
     
     print(f"✓ App bundle creado: {app_bundle}")
     return app_bundle
@@ -125,8 +127,8 @@ def create_info_plist(contents_dir, icon_file):
     
     plist_dict = {
         'CFBundleDevelopmentRegion': 'en',
-        'CFBundleExecutable': 'launcher.sh',
-        'CFBundleIdentifier': f'com.{AUTHOR.lower().replace(" ", "")}.mayasigner',
+        'CFBundleExecutable': 'applet',  # ← CAMBIADO: AppleScript crea un ejecutable llamado "applet"
+        'CFBundleIdentifier': f'com.{ORGANIZATION.lower().replace(" ", "")}.mayasigner',
         'CFBundleInfoDictionaryVersion': '6.0',
         'CFBundleName': APP_NAME,
         'CFBundleDisplayName': 'Maya Signer',
@@ -140,7 +142,9 @@ def create_info_plist(contents_dir, icon_file):
                 'CFBundleURLName': 'Maya Protocol',
                 'CFBundleURLSchemes': ['maya']
             }
-        ]
+        ],
+        # IMPORTANTE: Esto indica que la app maneja Apple Events
+        'NSAppleEventsUsageDescription': 'Maya Signer necesita manejar URLs del protocolo maya://',
     }
     
     if icon_file:
@@ -152,53 +156,90 @@ def create_info_plist(contents_dir, icon_file):
     
     print(f"✓ Info.plist creado")
 
-def create_launcher_script(macos_dir):
-    """Crea un script launcher que registra el protocolo al arrancar"""
+def create_applescript_handler(resources_dir, macos_dir):
+    """
+    Crea un AppleScript compilado que maneja las URLs del protocolo maya://
     
-    launcher_script = macos_dir / "launcher.sh"
+    En macOS, cuando se hace clic en maya://..., el sistema envía un Apple Event
+    a la aplicación registrada. Este evento debe ser capturado con AppleScript.
+    """
     
-    script_content = f'''#!/bin/bash
+    # Script AppleScript que captura las URLs
+    applescript_source = f'''-- Maya Signer URL Handler
+-- Maneja las URLs del protocolo maya://
 
-# Obtener el directorio del bundle
-BUNDLE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-MACOS_DIR="$BUNDLE_DIR/MacOS"
-
-# Registrar el protocolo maya:// si no está registrado
-register_protocol() {{
-    # Verificar si ya está registrado
-    CURRENT_HANDLER=$(defaults read com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers 2>/dev/null | grep -A 2 "maya" | grep "LSHandlerRoleAll" | cut -d'"' -f4)
+on open location this_URL
+    -- Log para debugging (se puede ver en Console.app)
+    log "Maya Signer recibió URL: " & this_URL
     
-    if [ "$CURRENT_HANDLER" != "com.{AUTHOR.lower().replace(" ", "")}.mayasigner" ]; then
-        echo "Registrando protocolo maya://"
+    -- Ruta al ejecutable real
+    set bundlePath to path to me as text
+    set executablePath to POSIX path of (bundlePath & "Contents:MacOS:maya-signer")
+    
+    -- Ejecutar el comando con la URL como argumento
+    try
+        do shell script quoted form of executablePath & " " & quoted form of this_URL & " > /dev/null 2>&1 &"
+        log "Maya Signer ejecutado correctamente"
+    on error errMsg
+        log "Error ejecutando Maya Signer: " & errMsg
+        display dialog "Error al ejecutar Maya Signer: " & errMsg buttons {{"OK"}} default button "OK" with icon caution
+    end try
+end open location
+
+-- Handler para cuando se abre la app sin URL (doble clic)
+on run
+    log "Maya Signer abierto sin URL"
+    
+    set bundlePath to path to me as text
+    set executablePath to POSIX path of (bundlePath & "Contents:MacOS:maya-signer")
+    
+    -- Arrancar el servicio en modo background
+    try
+        do shell script quoted form of executablePath & " --start-service > /dev/null 2>&1 &"
         
-        # Usar lsregister para registrar la aplicación
-        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$BUNDLE_DIR/.."
-        
-        # Establecer como handler por defecto
-        defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array-add '{{
-            LSHandlerContentType = "public.url";
-            LSHandlerPreferredVersions = {{ LSHandlerRoleAll = "-"; }};
-            LSHandlerRoleAll = "com.{AUTHOR.lower().replace(" ", "")}.mayasigner";
-            LSHandlerURLScheme = "maya";
-        }}'
-    fi
-}}
-
-# Registrar protocolo en primer arranque
-if [ ! -f "$HOME/.maya_signer/protocol_registered" ]; then
-    mkdir -p "$HOME/.maya_signer"
-    register_protocol
-    touch "$HOME/.maya_signer/protocol_registered"
-fi
-
-# Ejecutar la aplicación real
-exec "$MACOS_DIR/maya-signer" "$@"
+        -- Mostrar notificación opcional
+        display notification "Maya Signer está ejecutándose en segundo plano" with title "Maya Signer"
+    on error errMsg
+        log "Error iniciando servicio: " & errMsg
+        display dialog "Error al iniciar Maya Signer: " & errMsg buttons {{"OK"}} default button "OK" with icon caution
+    end try
+    
+    -- Terminar la app AppleScript (el servicio sigue corriendo)
+    quit
+end run
 '''
     
-    launcher_script.write_text(script_content)
-    launcher_script.chmod(0o755)
+    # Guardar el script fuente
+    script_source_file = resources_dir / "MayaSignerHandler.applescript"
+    script_source_file.write_text(applescript_source)
     
-    print(f"✓ Launcher script creado")
+    print("✓ AppleScript fuente creado")
+    
+    # Compilar el AppleScript a una aplicación
+    print("Compilando AppleScript...")
+    
+    # osacompile crea el ejecutable "applet" dentro de MacOS/
+    compile_cmd = [
+        "osacompile",
+        "-o", str(macos_dir.parent),  # Output es el Contents/ del bundle
+        str(script_source_file)
+    ]
+    
+    if not run_command(compile_cmd):
+        print("❌ Error compilando AppleScript")
+        return False
+    
+    print("✓ AppleScript compilado correctamente")
+    
+    # El ejecutable compilado debería estar en MacOS/applet
+    applet_path = macos_dir / "applet"
+    if applet_path.exists():
+        applet_path.chmod(0o755)
+        print(f"✓ Ejecutable AppleScript: {applet_path}")
+    else:
+        print(f"⚠️  Advertencia: No se encontró el ejecutable applet en {applet_path}")
+    
+    return True
 
 def create_dmg(app_bundle):
     """Crea el DMG usando create-dmg"""
@@ -230,7 +271,7 @@ def create_dmg(app_bundle):
     cmd = [
         "create-dmg",
         "--volname", f"Maya Signer {VERSION}",
-        "--volicon", str(build_dir.parent / "src" / "icon.icns") if (build_dir.parent / "src" / "icon.icns").exists() else "",
+        "--volicon", str(build_dir.parent / "src" / "assets" / "icon.icns") if (build_dir.parent / "src" / "assets" / "icon.icns").exists() else "",
         "--window-pos", "200", "120",
         "--window-size", "600", "400",
         "--icon-size", "100",
@@ -241,20 +282,6 @@ def create_dmg(app_bundle):
         str(dmg_file),
         str(dist_dir)
     ]
-    
-    # Filtrar opciones vacías
-    cmd = [c for c in cmd if c]
-    
-    if not run_command(cmd, cwd=build_dir):
-        print("❌ Error creando DMG")
-        return False
-    
-    print(f"\n✓ DMG creado: {dmg_file}")
-    
-    # Información del DMG
-    run_command(["hdiutil", "info", str(dmg_file)])
-    
-    return True
 
 def create_simple_readme():
     """Crea un README para el DMG"""
@@ -267,25 +294,42 @@ def create_simple_readme():
 
 INSTALACIÓN:
 1. Arrastra "MayaSigner.app" a tu carpeta Applications
-2. Abre MayaSigner desde Applications
+2. Abre MayaSigner desde Applications (primera vez)
 3. Permite los permisos cuando macOS lo solicite
 4. El protocolo maya:// se registrará automáticamente
+
+USO:
+- Al hacer clic en un enlace maya:// en el navegador, se abrirá Maya Signer
+- La aplicación procesará la solicitud de firma automáticamente
+- También puedes iniciar el servicio manualmente desde Applications
 
 DESINSTALACIÓN:
 1. Arrastra MayaSigner.app a la Papelera
 2. Elimina la carpeta ~/.maya_signer (opcional)
 
-NOTA IMPORTANTE:
+NOTA IMPORTANTE SOBRE SEGURIDAD:
 En el primer arranque, macOS puede mostrar:
 "MayaSigner.app no puede abrirse porque proviene de un desarrollador no identificado"
 
 Para solucionarlo:
-1. Haz clic derecho en MayaSigner.app
+1. Haz clic derecho (Control+clic) en MayaSigner.app
 2. Selecciona "Abrir"
 3. Confirma "Abrir" en el diálogo
 
 O en Preferencias del Sistema:
 Seguridad y Privacidad → General → "Abrir de todas formas"
+
+PERMISOS:
+macOS puede solicitar permisos para:
+- Accesibilidad (para firma con DNIe)
+- Eventos de Apple (para manejar URLs maya://)
+
+DEBUGGING:
+Los logs se encuentran en:
+~/Library/Logs/MayaSigner/
+
+Para ver logs en tiempo real:
+tail -f ~/Library/Logs/MayaSigner/client.log
 
 SOPORTE:
 - GitHub: https://github.com/Maya-AQSS/maya-signer
@@ -333,6 +377,9 @@ def main():
     print(f"\nPara instalar:")
     print(f"  1. Abre: maya-signer_{VERSION}_macOS.dmg")
     print(f"  2. Arrastra MayaSigner.app a Applications")
+    print(f"  3. Abre MayaSigner.app (primera vez con clic derecho → Abrir)")
+    print(f"\nPara probar el protocolo:")
+    print(f"  Abre en Safari: maya://sign?batch=123&url=https://test.com&token=abc")
     print(f"\nPara desinstalar:")
     print(f"  Arrastra MayaSigner.app a la Papelera")
     
