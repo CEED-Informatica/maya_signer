@@ -26,6 +26,9 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from custom_logging import setup_logger  # logging local
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from manifest import __version__
+
 SERVICE_PORT = 50304                    ## inventado
 LOCK_FILE = Path.home() / ".maya-signer.lock"
 
@@ -145,7 +148,7 @@ class MayaSignerService(QObject):
     # (Gestion documental/Gestion alumnos)
     self.credentials_store = {}  
   
-    self.version = "0.3a0"
+    self.version = __version__
 
     # Señales para Qt
     self.signals = SignalEmitter()
