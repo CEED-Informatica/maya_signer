@@ -3,6 +3,9 @@
 ## Tecnologías Utilizadas
 
 **Core**
+
+<center>
+
 | Tecnología | Versión | Uso | 
 | ---------- | -------- | --- |
 | Python     | 3.8+     | Lenguaje principal | 
@@ -10,7 +13,11 @@
 | pyHanko    | 0.20+    | Firma de PDFs |
 | cryptography | 41+    | Gestión de certificados |
 
+</center>
+
 **Empaquetado**
+
+<center>
 
 | Herramienta | Plataforma | Uso |
 | ----------  | ---------- | --- | 
@@ -19,6 +26,8 @@
 | WiX Toolset | Windows    | Creación de .msi |
 | create-dmg  | macOS      | Creación de .dmg |
 
+</center>
+
 **CI/CD**
 
 * GitHub Actions: Compilación automática
@@ -26,6 +35,8 @@
 * GitHub Pages: Documentación (VitePress)
 
 **Arquitectura del Sistema**
+
+<br>
 
 <center>
 
@@ -157,3 +168,91 @@ sequenceDiagram
 ```
 
 </center>
+
+## Protocolo `maya://`
+
+### Formato de URL
+
+```
+maya://sign?batch=123&url=https://maya.example.com&db=production&token=abc123xyz
+```
+
+### Parámetros
+
+| Parámetro | Requerido | Descripción |
+|  :------: | :--: | :---------- |
+| `batch`   |  Sí  | ID del lote de firma |
+| `url`     |  Sí  | URL del servidor Odoo |
+| `db`      |  No  | Nombre de la base de datos |
+| `token`   |  Sí  | Token de sesión (validez 10 min) |
+
+### Seguridad del Token
+
+- Generado en el servidor Maya
+- Validez: 10 minutos
+- Uso único por lote
+- Validado en cada operación
+
+## API Interna del Servicio
+
+### Endpoints HTTP (localhost:50304)
+
+#### GET /health
+
+Verifica que el servicio está corriendo.
+
+```json
+// Response
+{
+  "status": "running"
+}
+```
+
+#### POST /
+
+Procesa una petición de firma.
+
+```json
+// Request
+{
+  "batch": 123,
+  "url": "https://maya.example.com",
+  "database": "production",
+  "token": "abc123xyz"
+}
+
+// Response 200 OK
+{
+  "status": "processing"
+}
+
+// Response 401 Unauthorized
+{
+  "error": "credentials_required"
+}
+
+// Response 499 Client Closed Request
+{
+  "error": "user_cancelled"
+}
+```
+
+
+## Gestión de Versiones
+
+### Versión Centralizada
+
+Todo el sistema lee de `manifest.py`:
+
+```python
+__version__ = "0.3.0"
+__author__ = "Tu Nombre"
+__email__ = "tu@email.com"
+```
+
+Esto actualiza automáticamente:
+- Nombres de paquetes (.deb, .msi, .dmg)
+- Información en la interfaz
+- Metadata de instaladores
+
+La versión sigue la estrutura de [Semantic Versioning](https://semver.org/):
