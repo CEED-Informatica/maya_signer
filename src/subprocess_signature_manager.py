@@ -37,6 +37,9 @@ class SubprocessSignatureManager:
       else:
         # Busco signer_worker.py en el mismo directorio
         worker_path = Path(__file__).parent / "signer_worker.py"
+
+    else:
+      worker_path = worker_script
     
     self.worker_script = Path(worker_path)
     
