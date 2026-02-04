@@ -8,7 +8,7 @@ Guía paso a paso para usar **Maya | Signer**
 
 1. **Haz clic** en el botón _Firmar_ el documento o el lote de documentos
 
-![Botón Firmar en Maya](/screenshots/maya-sign-button.png)
+![Botón Firmar en Maya](/public/maya-sign-button.png)
 
 ## Comprobación del arranque del servicio (opcional)
 
@@ -45,13 +45,13 @@ Cuando el servicio está activo, verás un icono en:
 - **Windows**: System tray (esquina inferior derecha)
 - **macOS**: Barra de menú superior
 
-![Icono Maya Signer](/screenshots/icon-tray.png)
+![Icono Maya Signer](/public/icon-tray.png)
 
 ### Menú del Icono
 
 Haz clic derecho en el icono para ver:
 
-![Menu bandeja](/screenshots/menu-tray.png)
+![Menu bandeja](/public/menu-tray.png)
 
 - **Maya Signer X.X.X** (versión)
 - **Servicio Listo** (estado actual)
@@ -65,7 +65,7 @@ Haz clic derecho en el icono para ver:
 
 En el caso de que las credenciales no estén almacenadas, se abrirá el diálogo de credenciales/configuración automáticamente:
 
-![Diálogo de Credenciales](/screenshots/credentials-dialog.png)
+![Diálogo de Credenciales](/public/credentials-dialog.png)
 
 ::: warning Seguridad
 Por motivos de seguridad, es necesario introducir las credenciales en un tiempo máximo de 2 minutos.
