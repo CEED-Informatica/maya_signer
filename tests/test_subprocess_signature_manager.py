@@ -58,6 +58,7 @@ class TestReadResults:
   Lectura correcta de resultados del worker
   """
 
+  @pytest.mark.unit
   def test_lee_documentos_firmados_correctamente(self, manager, work_dir):
     """
     Lee el output.json y los PDFs firmados generados por el worker
@@ -98,6 +99,7 @@ class TestReadResults:
     assert results[1]["signed_pdf_bytes"] == signed_content_2
     assert results[0]["signed_filename"] == "factura_001_firmado.pdf"
 
+  @pytest.mark.unit
   def test_ignora_resultados_fallidos(self, manager, work_dir):
     """
     Documentos con success=False no aparecen en el resultado
@@ -122,6 +124,7 @@ class TestReadResults:
     assert len(results) == 1
     assert results[0]["document_id"] == 1
 
+  @pytest.mark.unit
   def test_retorna_vacio_si_no_hay_output(self, manager, work_dir):
     """
     Si output.json no existe, retorna lista vacía
@@ -129,6 +132,7 @@ class TestReadResults:
     results = manager.read_results(work_dir)
     assert results == []
 
+  @pytest.mark.unit
   def test_retorna_vacio_si_pdf_firmado_no_existe(self, manager, work_dir):
     """
     Si el PDF firmado referenciado no existe, se ignora ese documento
@@ -151,6 +155,7 @@ class TestCleanup:
   Limpieza de archivos temporales
   """
 
+  @pytest.mark.unit
   def test_elimina_directorio(self, manager, work_dir):
     """
     El cleanup elimina el directorio completo
@@ -161,6 +166,7 @@ class TestCleanup:
 
     assert not work_dir.exists()
 
+  @pytest.mark.unit
   def test_no_crashea_si_no_existe(self, manager, tmp_path):
     """
     Si el directorio ya no existe, no lanza error

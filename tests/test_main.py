@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch, MagicMock
 
 from src.main import parse_protocol_url, handle_protocol_call
@@ -7,7 +8,8 @@ class TestParseProtocolUrl:
   Parsing correcto de URLs maya://
   Detección de parámetros que no existen
   """
-
+  
+  @pytest.mark.unit
   def test_parsea_url_completa(self):
     """
     Extrae todos los parámetros de una URL bien formada
@@ -20,6 +22,7 @@ class TestParseProtocolUrl:
     assert result["database"] == "prod"
     assert result["token"] == "tok123"
 
+  @pytest.mark.unit
   def test_parsea_url_sin_database(self):
     """
     El parámetro db es opcional
@@ -32,6 +35,7 @@ class TestParseProtocolUrl:
     assert result["database"] == ""
     assert result["token"] == "abc"
 
+  @pytest.mark.unit
   def test_parsea_url_con_caracteres_especiales(self):
     """
     URLs con caracteres especiales codificados se parsean correctamente
@@ -47,6 +51,7 @@ class TestHandleProtocolCall:
 
   @patch("src.main.send_signature_request")
   @patch("src.main.is_service_running", return_value=True)
+  @pytest.mark.unit
   def test_envía_petición_si_servicio_corriendo(self, mock_running, mock_send):
       """
       Si el servicio está activo, envía la petición directamente
@@ -62,6 +67,7 @@ class TestHandleProtocolCall:
   @patch("src.main.send_signature_request")
   @patch("src.main.start_service", return_value=True)
   @patch("src.main.is_service_running", return_value=False)
+  @pytest.mark.unit
   def test_inicia_servicio_si_no_está_corriendo(self, mock_running, mock_start, mock_send):
       """
       Si el servicio no está activo, lo inicia antes de enviar
@@ -76,6 +82,7 @@ class TestHandleProtocolCall:
       mock_send.assert_called_once()
 
   @patch("src.main.is_service_running", return_value=True)
+  @pytest.mark.unit
   def test_falla_sin_batch(self, mock_running):
       """
       Sin parámetro batch retorna error
@@ -87,6 +94,7 @@ class TestHandleProtocolCall:
       assert result == 1
 
   @patch("src.main.is_service_running", return_value=True)
+  @pytest.mark.unit
   def test_falla_sin_token(self, mock_running):
       """
       Sin parámetro token retorna error

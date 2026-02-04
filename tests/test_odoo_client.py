@@ -32,6 +32,7 @@ class TestValidateBatchToken:
   Validación de token: respuestas válidas, inválidas y errores
   """
 
+  @pytest.mark.unit
   def test_token_valido(self):
     """
     Un token válido retorna sin errores
@@ -45,6 +46,7 @@ class TestValidateBatchToken:
     assert result["valid"] is True
     assert result["batch_name"] == "Lote 1"
 
+  @pytest.mark.unit
   def test_token_invalido_lanza_error(self):
     """
     Un token inválido (valid=False) lanza OdooTokenError
@@ -59,6 +61,7 @@ class TestValidateBatchToken:
     with pytest.raises(OdooTokenError, match="Token expirado"):
         client.validate_batch_token(42)
 
+  @pytest.mark.unit
   def test_sin_token_configurado_lanza_error(self):
     """
     Si no hay token, lanza OdooTokenError inmediatamente
@@ -68,6 +71,7 @@ class TestValidateBatchToken:
     with pytest.raises(OdooTokenError, match="No hay token"):
       client.validate_batch_token(42)
 
+  @pytest.mark.unit
   def test_error_xmlrpc_se_convierte_en_token_error(self):
     """
     Errores inesperados del servidor se convierten en OdooTokenError
@@ -103,6 +107,7 @@ class TestDownloadUnsignedPdfs:
     ]
     return client
 
+  @pytest.mark.unit
   def test_descarga_solo_documentos_no_firmados(self):
     """
     Ignora documentos con state='signed'
@@ -124,6 +129,7 @@ class TestDownloadUnsignedPdfs:
     assert len(result) == 2
     assert all(doc["state"] == "unsigned" for doc in result)
 
+  @pytest.mark.unit
   def test_decodifica_base64_correctamente(self):
     """
     El pdf_bytes del resultado es la decodificación correcta del base64
@@ -141,6 +147,7 @@ class TestDownloadUnsignedPdfs:
 
     assert result[0]["pdf_bytes"] == contenido_original
 
+  @pytest.mark.unit
   def test_ignora_documentos_sin_contenido_pdf(self):
     """
     Documentos con pdf_content vacío o None se saltan
@@ -162,6 +169,7 @@ class TestDownloadUnsignedPdfs:
     assert len(result) == 1
     assert result[0]["id"] == 1
 
+  @pytest.mark.unit
   def test_base64_invalido_no_crashea(self):
     """
     Un pdf_content con base64 inválido se ignora sin crashear
