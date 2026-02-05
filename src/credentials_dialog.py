@@ -60,10 +60,10 @@ class CredentialsDialog(QDialog):
     self.setWindowTitle('Maya Signer - Credenciales')
     self.setModal(True)
     
-    self.setGeometry(300, 300, 750, 395)
+    self.setGeometry(300, 300, 750, 430)
     self.setMinimumWidth(550)
-    self.setMinimumHeight(395)
-    self.setMaximumHeight(395)
+    self.setMinimumHeight(430)
+    self.setMaximumHeight(430)
 
     main_layout = QVBoxLayout()
         
@@ -139,6 +139,7 @@ class CredentialsDialog(QDialog):
     "confirme la firma manualmente para CADA documento del lote."
 )
     header_layout.addWidget(self.dnie_checkbox)
+    header_layout.addWidget(QLabel(""))
 
     right_layout.addLayout(header_layout)
 
