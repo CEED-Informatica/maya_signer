@@ -126,7 +126,7 @@ def create_info_plist(contents_dir, icon_file):
     """Crea el archivo Info.plist"""
     
     plist_dict = {
-        'CFBundleDevelopmentRegion': 'en',
+        'CFBundleDevelopmentRegion': 'es',
         'CFBundleExecutable': 'applet',  # ← CAMBIADO: AppleScript crea un ejecutable llamado "applet"
         'CFBundleIdentifier': f'com.{ORGANIZATION.lower().replace(" ", "")}.mayasigner',
         'CFBundleInfoDictionaryVersion': '6.0',
@@ -165,53 +165,158 @@ def create_applescript_handler(resources_dir, macos_dir):
     """
     
     # Script AppleScript que captura las URLs
-    applescript_source = f'''-- Maya Signer URL Handler
--- Maneja las URLs del protocolo maya://
+#     applescript_source = f'''-- Maya Signer URL Handler
+# -- Maneja las URLs del protocolo maya://
 
-on open location this_URL
-    -- Log para debugging (se puede ver en Console.app)
-    log "Maya Signer recibió URL: " & this_URL
+# on open location this_URL
+#     -- Log para debugging (se puede ver en Console.app)
+#     log "Maya Signer recibió URL: " & this_URL
     
-    -- Ruta al ejecutable real
+#     -- Ruta al ejecutable real
+#     set bundlePath to path to me as text
+#     set executablePath to POSIX path of (bundlePath & "Contents:MacOS:maya-signer")
+    
+#     -- Ejecutar el comando con la URL como argumento
+#     try
+#         do shell script quoted form of executablePath & " " & quoted form of this_URL & " > /dev/null 2>&1 &"
+#         log "Maya Signer ejecutado correctamente"
+#     on error errMsg
+#         log "Error ejecutando Maya Signer: " & errMsg
+#         display dialog "Error al ejecutar Maya Signer: " & errMsg buttons {{"OK"}} default button "OK" with icon caution
+#     end try
+# end open location
+
+# -- Handler para cuando se abre la app sin URL (doble clic)
+# on run
+#     log "Maya Signer abierto sin URL"
+    
+#     set bundlePath to path to me as text
+#     set executablePath to POSIX path of (bundlePath & "Contents:MacOS:maya-signer")
+    
+#     -- Arrancar el servicio en modo background
+#     try
+#         do shell script quoted form of executablePath & " --start-service > /dev/null 2>&1 &"
+        
+#         -- Mostrar notificación opcional
+#         display notification "Maya Signer está ejecutándose en segundo plano" with title "Maya Signer"
+#     on error errMsg
+#         log "Error iniciando servicio: " & errMsg
+#         display dialog "Error al iniciar Maya Signer: " & errMsg buttons {{"OK"}} default button "OK" with icon caution
+#     end try
+    
+#     -- Terminar la app AppleScript (el servicio sigue corriendo)
+#     quit
+# end run
+# '''
+
+    applescript_source = f'''-- Maya Signer URL Handler (Standalone para testing)
+-- Este script maneja las URLs del protocolo maya://
+-- 
+-- Para probar:
+-- 1. Compila con: osacompile -o MayaSigner.app MayaSignerHandler.applescript
+-- 2. Prueba con: open "maya://sign?batch=123&url=https://test.com&token=abc"
+
+-- Handler principal: se ejecuta cuando se hace clic en una URL maya://
+on open location this_URL
+    -- Log para debugging (visible en Console.app)
+    log "================================"
+    log "Maya Signer recibió URL: " & this_URL
+    log "================================"
+    
+    -- Obtener la ruta al ejecutable maya-signer
     set bundlePath to path to me as text
     set executablePath to POSIX path of (bundlePath & "Contents:MacOS:maya-signer")
     
-    -- Ejecutar el comando con la URL como argumento
+    log "Ejecutable: " & executablePath
+    
+    -- Verificar que el ejecutable existe
     try
-        do shell script quoted form of executablePath & " " & quoted form of this_URL & " > /dev/null 2>&1 &"
-        log "Maya Signer ejecutado correctamente"
-    on error errMsg
-        log "Error ejecutando Maya Signer: " & errMsg
-        display dialog "Error al ejecutar Maya Signer: " & errMsg buttons {{"OK"}} default button "OK" with icon caution
+        do shell script "test -f " & quoted form of executablePath
+    on error
+        log "ERROR: Ejecutable no encontrado en " & executablePath
+        display dialog "Error: No se encontró el ejecutable maya-signer" buttons {"OK"} default button "OK" with icon stop
+        return
+    end try
+    
+    -- Ejecutar el comando con la URL como argumento
+    -- El & al final hace que se ejecute en background
+    try
+        set cmd to quoted form of executablePath & " " & quoted form of this_URL & " > /tmp/maya-signer.log 2>&1 &"
+        
+        log "Ejecutando comando: " & cmd
+        
+        do shell script cmd
+        
+        log "✓ Maya Signer ejecutado correctamente"
+        
+        -- Opcional: mostrar notificación
+        display notification "Procesando solicitud de firma..." with title "Maya Signer" subtitle this_URL
+        
+    on error errMsg number errNum
+        log "ERROR ejecutando Maya Signer: " & errMsg & " (código: " & errNum & ")"
+        
+        display dialog "Error al ejecutar Maya Signer:" & return & return & errMsg buttons {"Ver Log", "OK"} default button "OK" with icon caution
+        
+        if button returned of result is "Ver Log" then
+            do shell script "open -a Console /tmp/maya-signer.log"
+        end if
     end try
 end open location
 
--- Handler para cuando se abre la app sin URL (doble clic)
+-- Handler secundario: se ejecuta cuando se abre la app sin URL (doble clic)
 on run
-    log "Maya Signer abierto sin URL"
+    log "================================"
+    log "Maya Signer abierto sin URL (doble clic)"
+    log "================================"
     
+    -- Obtener ruta al ejecutable
     set bundlePath to path to me as text
     set executablePath to POSIX path of (bundlePath & "Contents:MacOS:maya-signer")
     
+    log "Ejecutable: " & executablePath
+    
     -- Arrancar el servicio en modo background
     try
-        do shell script quoted form of executablePath & " --start-service > /dev/null 2>&1 &"
+        set cmd to quoted form of executablePath & " --start-service > /tmp/maya-signer-service.log 2>&1 &"
         
-        -- Mostrar notificación opcional
-        display notification "Maya Signer está ejecutándose en segundo plano" with title "Maya Signer"
-    on error errMsg
-        log "Error iniciando servicio: " & errMsg
-        display dialog "Error al iniciar Maya Signer: " & errMsg buttons {{"OK"}} default button "OK" with icon caution
+        log "Iniciando servicio: " & cmd
+        
+        do shell script cmd
+        
+        log "✓ Servicio iniciado correctamente"
+        
+        -- Mostrar notificación
+        display notification "Maya Signer está ejecutándose en segundo plano" with title "Maya Signer" sound name "Glass"
+        
+        -- Opcional: mostrar diálogo informativo
+        display dialog "Maya Signer está ejecutándose en segundo plano." & return & return & ¬
+            "El servicio procesará automáticamente las solicitudes desde el navegador." buttons {"OK"} default button "OK" with icon note giving up after 5
+        
+    on error errMsg number errNum
+        log "ERROR iniciando servicio: " & errMsg & " (código: " & errNum & ")"
+        
+        display dialog "Error al iniciar Maya Signer:" & return & return & errMsg buttons {"Ver Log", "OK"} default button "OK" with icon stop
+        
+        if button returned of result is "Ver Log" then
+            do shell script "open -a Console /tmp/maya-signer-service.log"
+        end if
     end try
     
     -- Terminar la app AppleScript (el servicio sigue corriendo)
     quit
 end run
+
+-- Handler para cuando la app ya está corriendo y recibe una nueva URL
+on reopen
+    log "Maya Signer ya estaba abierto (reopen)"
+    -- No hacer nada, el servicio ya está corriendo
+end reopen
 '''
     
     # Guardar el script fuente
     script_source_file = resources_dir / "MayaSignerHandler.applescript"
     script_source_file.write_text(applescript_source)
+    applet_path = macos_dir / "applet"
     
     print("✓ AppleScript fuente creado")
     
@@ -221,7 +326,7 @@ end run
     # osacompile crea el ejecutable "applet" dentro de MacOS/
     compile_cmd = [
         "osacompile",
-        "-o", str(macos_dir.parent),  # Output es el Contents/ del bundle
+        "-o", str(applet_path),  # Output es el Contents/ del bundle
         str(script_source_file)
     ]
     
@@ -232,7 +337,6 @@ end run
     print("✓ AppleScript compilado correctamente")
     
     # El ejecutable compilado debería estar en MacOS/applet
-    applet_path = macos_dir / "applet"
     if applet_path.exists():
         applet_path.chmod(0o755)
         print(f"✓ Ejecutable AppleScript: {applet_path}")
@@ -282,6 +386,23 @@ def create_dmg(app_bundle):
         str(dmg_file),
         str(dist_dir)
     ]
+
+    # Añadir icono del volumen si existe
+    icon_path = build_dir.parent / "src" / "assets" / "icon.icns"
+    if icon_path.exists():
+        cmd.insert(2, "--volicon")
+        cmd.insert(3, str(icon_path))
+    
+    if not run_command(cmd, cwd=build_dir):
+        print("❌ Error creando DMG")
+        return False
+    
+    print(f"\n✓ DMG creado: {dmg_file}")
+    
+    # Información del DMG
+    run_command(["hdiutil", "verify", str(dmg_file)])
+    
+    return True
 
 def create_simple_readme():
     """Crea un README para el DMG"""
